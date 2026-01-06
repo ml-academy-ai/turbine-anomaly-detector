@@ -207,8 +207,9 @@ I prepared a complete data analysis with all the steps I want to show.
 Some things we will still be covering and coding as we go when we need to look at someting further.
 
 The main reason why we are NOT coding live in the Notebooks because:
-- All of you are familar with coding in Jupyter
+- All of you are familar with coding in Jupyter and also a lot of code just create various plots.
 - For the DS part of the course, I want to focus more on the methods and thinking like a Lead Data Scienttists and discussions about the analysis details.
 - We will go to the important parts of the code in detail, so again we better spend time discussing things important
 for the deep DS analysis.
 - Ones we are done with notebooks, when we start building the applications, we will be coding live. Otherwise, we would need more sessions which would not provide any significant value for you.
+- Anyway, the Notebooks will be full of comments so that you will be able to revisit this any time and fully understand it.
