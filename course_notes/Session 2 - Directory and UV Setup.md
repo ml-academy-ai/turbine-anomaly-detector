@@ -1,8 +1,60 @@
 ## Installing uv
+For the Python environments and dependency resolutions, we will use uv.
+
+Let's compare uv with other tools (slide).
+
+Here's how to install uv.
 https://docs.astral.sh/uv/getting-started/installation/
 
+## Creating env with uv
+
+## Setting Up a Virtual Environment with uv (Quick Reference)
+
+Just an example, let's create a directory `mkdir project-example`:
+
+```bash
+mkdir project-example
+```
+- **Create the virtual environment with a specific Python version:**
+```bash
+cd project-example
+uv venv .venv --python 3.12
+uv init
+```
+**uv init** Creates a `pyproject.toml` file where we can see the project info and dependencies.
+
+- **Activate the virtual environment:**
+```bash
+source .venv/bin/activate
+```
+
+Then add:
+```bash
+"numpy>=1.26,<2",
+ ```
+
+**Install dependencies (if you have a `pyproject.toml` file):**
+```bash
+uv sync
+```
+
+After running `uv sync`, it will create a uv.lock file. The uv.lock file captures the exact dependency 
+versions resolved for the project and becomes the single source of truth for environments. 
+Once committed, all installs (local, CI, production) use uv sync to recreate the same environment 
+from the lock file, ensuring consistency and reproducibility.
+
+To add a package, we can run:
+```bash
+uv add pandas
+```
+
+It will the add pandas to the `pyproject.toml` and to the lock file.
+
+
 ## Installing Kedro
-For our porject, we will use a Kedro ML Project template.
+But here, we started create the project and all the files from scratch.
+
+In our course, we will use a Kedro ML Project template and Kedro ML Pipeline manager.
 
 Kedro is ML pipeline manager which also forces an ML project to follow a certain structure. We can start using structure after creating a project with Kedro.
 
@@ -134,5 +186,29 @@ git init
 ```bash
 git status
 git add .
-git commit -m "Initial Kedro project setuInitial commit
+git commit -m "Initial commit"
 ```
+2. On GitHub:
+- Click New repository
+- Name it - turbine-anomaly-detector
+- Create repository
+
+3. Run (copy from git)
+```bash
+git remote add origin https://github.com/ml-academy-ai/turbine-anomaly-detector.git
+git branch -M main
+git push -u origin main
+```
+
+
+# Data analysis
+I prepared a complete data analysis with all the steps I want to show.
+
+Some things we will still be covering and coding as we go when we need to look at someting further.
+
+The main reason why we are NOT coding live in the Notebooks because:
+- All of you are familar with coding in Jupyter
+- For the DS part of the course, I want to focus more on the methods and thinking like a Lead Data Scienttists and discussions about the analysis details.
+- We will go to the important parts of the code in detail, so again we better spend time discussing things important
+for the deep DS analysis.
+- Ones we are done with notebooks, when we start building the applications, we will be coding live. Otherwise, we would need more sessions which would not provide any significant value for you.
