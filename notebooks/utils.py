@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, Tuple
 
 import numpy as np
 import pandas as pd
@@ -94,6 +94,383 @@ def plot_time_series(df: pd.DataFrame, columns: list[str], step: int = 10, rolli
 
     fig.show()
 
+
+def plot_predictions(y_true: pd.Series, y_pred: pd.Series, title: str) -> None:
+    """
+    Plots interactive predictions with Plotly
+    """
+    # Assume y_test and y_pred are pandas Series with a datetime index
+    fig = go.Figure()
+    
+    # Add actual values
+    fig.add_trace(go.Scatter(
+        x=y_true.index, y=y_true.values,
+        mode='lines',
+        name='Actual',
+        line=dict(width=2)
+    ))
+    
+    # Add predicted values
+    fig.add_trace(go.Scatter(
+        x=y_true.index, y=y_pred,
+        mode='lines',
+        name='Predicted',
+        line=dict(width=1)
+    ))
+    
+    # Customize layout
+    fig.update_layout(
+        title=title,
+        xaxis_title='Date',
+        yaxis_title='Value',
+        legend=dict(x=0, y=1),
+        height=500
+    )
+    
+    fig.show()
+
+
+def remove_outliers_zscore(
+    df: pd.DataFrame,
+    threshold: float = 3.0,
+    nan_treatment: str = 'ffill',
+    stats: dict[str, tuple[float, float]] | None = None
+) -> tuple[pd.DataFrame, dict[str, tuple[float, float]]]:
+    """
+    Replace outliers (per-column z-score > threshold) with NaN.
+    Optionally forward-fills or drops the resulting NaNs.
+    If stats are provided, uses them; otherwise computes and returns them
+    (so the same parameters can be applied to test data).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input data (numeric/mixed).
+    threshold : float
+        |z| cutoff.
+    nan_treatment : {'ffill','drop'}
+        How to handle NaNs.
+    stats : dict or None
+        Precomputed {col: (mean, std)}.
+
+    Returns
+    -------
+    df_masked : pd.DataFrame
+        DataFrame with outliers replaced and NaN treatment applied.
+    fit_stats : Dict[str,(float,float)]
+        Mean and std used (save for test).
+    """
+    df_masked = df.copy()
+    numeric_cols = df.select_dtypes(include=np.number).columns
+    fit_stats: dict[str, tuple[float, float]] = {}
+
+    if stats is None:
+        for col in numeric_cols:
+            fit_stats[col] = (df[col].mean(), df[col].std(ddof=0))
+    else:
+        fit_stats = stats
+
+    total_changed = 0
+
+    for col in numeric_cols:
+        mean, std = fit_stats[col]
+        if std == 0:
+            print(f"{col}: std==0, skipped")
+            continue
+
+        z = np.abs((df[col] - mean) / std)
+        changed = int((z > threshold).sum())
+        total_changed += changed
+
+        print(f"{col}: {changed} replaced")
+
+        df_masked.loc[z > threshold, col] = np.nan
+
+    print(f"TOTAL replaced: {total_changed}")
+
+    if nan_treatment == 'ffill':
+        df_masked = df_masked.ffill()
+    elif nan_treatment == 'drop':
+        df_masked = df_masked.dropna()
+    else:
+        raise ValueError(f"nan_treatment '{nan_treatment}' not recognized.")
+
+    return df_masked, fit_stats
+
+
+def plot_errors(
+    x_true: pd.DataFrame,
+    y_true: pd.Series | pd.DataFrame,
+    y_pred: np.ndarray | list,
+    error: Literal["mae", "mape"],
+    error_threshold: float,
+    rolling_window: int
+) -> None:
+    """
+    Plot prediction errors with detected anomalies and threshold lines.
+
+    Parameters
+    ----------
+    x_true : pd.DataFrame
+        Original input data (with datetime index).
+    y_true : pd.Series or pd.DataFrame
+        True target values.
+    y_pred : array-like
+        Predicted target values.
+    error : {"mae", "mape"}
+        Type of error to visualize.
+    error_threshold : float
+        Threshold above which points are flagged as anomalies.
+    rolling_window: int
+        Rolling window for the error rolling aggregation
+    """
+
+    # Create a DataFrame with true values and compute the error
+    y_test_err = pd.DataFrame(y_true)
+    if error == "mae":
+        y_test_err['Error'] = abs(y_test_err['Power'] - y_pred)
+    elif error == 'rmse':
+        y_test_err['Error'] = np.sqrt((y_test_err['Power'] - y_pred)**2)
+    elif error == 'mape':
+        y_test_err['Error'] = abs(y_test_err['Power'] - y_pred) / y_test_err['Power'] * 100
+
+    # Ensure both y_test_err and x_true have datetime indices
+    y_test_err.index = pd.to_datetime(y_test_err.index)
+    x_true.index = pd.to_datetime(x_true.index)
+
+    # Initialize Plotly figure
+    fig = go.Figure()
+
+    # Plot the error over time
+    fig.add_trace(go.Scatter(
+        x=y_test_err.index,
+        y=y_test_err['Error'].values,
+        mode='lines',
+        name='Error',
+        line=dict(width=2)
+    ))
+
+    # Add horizontal line for static 95th percentile threshold
+    fig.add_hline(
+        y=error_threshold,
+        line_color="black",
+        annotation_text="Upper Threshold",
+        annotation_position="bottom right"
+    )
+
+    # Plot rolling median error for smoothed trend
+    fig.add_trace(go.Scatter(
+        x=y_test_err.index,
+        y=y_test_err['Error'].rolling(rolling_window).median(),
+        mode='lines',
+        name='Rolling Median Error',
+        line=dict(width=2)
+    ))
+
+    # Configure layout settings
+    fig.update_layout(
+        title='Prediction Error and Anomaly Detection',
+        xaxis_title='Date',
+        yaxis_title='Error',
+        legend=dict(x=0, y=1),
+        height=500,
+        template='plotly_white'
+    )
+
+    fig.show()
+
+
+def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[float, float, float]:
+    """
+    Compute MAE, RMSE, and MAPE for regression predictions.
+
+    Parameters
+    ----------
+    y_true : array-like
+        Ground truth values.
+    y_pred : array-like
+        Predicted values.
+
+    Returns
+    -------
+    tuple of floats
+        (mae, rmse, mape)
+    """
+    # Make 1D arrays. Critical to have the arrays of the same shape
+    y_true = np.asarray(y_true).ravel()
+    y_pred = np.asarray(y_pred).ravel()
+
+    # Metrics
+    mae = mean_absolute_error(y_true, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    mape = np.mean(np.abs((y_true - y_pred) / np.clip(np.abs(y_true), 1e-8, None))) * 100
+    return mae, rmse, mape
+
+def eval_model(
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    y_test: pd.Series,
+    n_splits: int = 3,
+    model_name: Literal["RF", "LinReg", "CatBoost", "LSTM", "MLP"] = "RF",
+    model_params: dict[str, Any] | None = None,
+    SEED: int = 42,
+) -> dict[str, Any]:
+    """
+    Evaluate a time series model using TimeSeriesSplit cross-validation
+    on the training set, then refit on the full train data and evaluate on test.
+
+    Parameters
+    ----------
+    x_train : pd.DataFrame
+        Training features.
+    y_train : pd.Series
+        Training target.
+    x_test : pd.DataFrame
+        Test features.
+    y_test : pd.Series
+        Test target.
+    n_splits : int, default=3
+        Number of time-series CV folds.
+    model_name : {'RF','LinReg','CatBoost','LSTM','MLP'}, default='RF'
+        Model identifier.
+    model_params : dict or None
+        Keyword arguments for the selected model.
+    SEED : int, default=42
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    results : dict
+        - 'cv_mae'   : average MAE over CV folds
+        - 'cv_rmse'  : average RMSE over CV folds
+        - 'cv_mape'  : average MAPE over CV folds
+        - 'test_mae' : MAE on the final test set
+        - 'test_rmse': RMSE on the final test set
+        - 'test_mape': MAPE on the final test set
+        - 'y_pred_test': model predictions on test set
+        - 'model'      : fitted final model
+        - 'x_scaler'   : fitted StandardScaler for X features
+    """
+    np.random.seed(SEED)
+
+    if model_params is None:
+        model_params = {}
+
+    tscv = TimeSeriesSplit(n_splits=n_splits)
+    cv_mae_list: list[float] = []
+    cv_rmse_list: list[float] = []
+    cv_mape_list: list[float] = []
+
+    # --- Cross-validation ---
+    for fold, (train_idx, val_idx) in enumerate(tscv.split(x_train), 1):
+        x_train_cv = x_train.iloc[train_idx, :].copy()
+        x_val_cv = x_train.iloc[val_idx, :].copy()
+        y_train_cv = y_train.iloc[train_idx].copy()
+        y_val_cv = y_train.iloc[val_idx].copy()
+
+        if model_name == "LSTM":
+            y_val_aligned, y_pred_cv, model, _ = fit_lstm(
+                x_train_cv, y_train_cv, x_val_cv, y_val_cv, model_params, SEED
+            )
+            mae_err, rmse_err, mape_err = compute_metrics(y_val_aligned, y_pred_cv)
+
+        elif model_name == "MLP":
+            y_val_aligned, y_pred_cv, model, _ = fit_mlp(
+                x_train_cv, y_train_cv, x_val_cv, y_val_cv, model_params, SEED
+            )
+            mae_err, rmse_err, mape_err = compute_metrics(y_val_aligned, y_pred_cv)
+
+        else:
+            # Scale features
+            x_scaler = StandardScaler()
+            x_scaled_cv_train = x_scaler.fit_transform(x_train_cv)
+            x_scaled_cv_val = x_scaler.transform(x_val_cv)
+
+            y_train_cv_vals = y_train_cv.values.ravel()
+            y_val_cv_vals = y_val_cv.values.ravel()
+
+            # Construct model
+            if model_name == "RF":
+                model = RF(**model_params)
+            elif model_name == "LinReg":
+                model = Ridge(**model_params)
+            elif model_name == "CatBoost":
+                params = dict(model_params)
+                params.setdefault("verbose", False)
+                params.setdefault("random_seed", SEED)
+                model = CatBoostRegressor(**params)
+            else:
+                raise ValueError(f"Unknown model_name: {model_name}")
+
+            model.fit(x_scaled_cv_train, y_train_cv_vals)
+            y_pred_cv = model.predict(x_scaled_cv_val)
+
+            mae_err, rmse_err, mape_err = compute_metrics(y_val_cv_vals, y_pred_cv)
+
+        cv_mae_list.append(float(mae_err))
+        cv_rmse_list.append(float(rmse_err))
+        cv_mape_list.append(float(mape_err))
+
+    cv_mae = float(np.mean(cv_mae_list))
+    cv_rmse = float(np.mean(cv_rmse_list))
+    cv_mape = float(np.mean(cv_mape_list))
+
+    # --- Final model training ---
+    if model_name == "LSTM":
+        y_test_aligned, y_pred_test_aligned, model, x_scaler = fit_lstm(
+            x_train, y_train, x_test, y_test, model_params, SEED
+        )
+        seq_len = model_params.get("seq_len", 48)
+
+        y_pred_test = np.full(len(y_test), np.nan, dtype=float)
+        y_pred_test[seq_len:] = y_pred_test_aligned
+
+        mae_err_test, rmse_err_test, mape_err_test = compute_metrics(
+            y_test.values[seq_len:], y_pred_test[seq_len:]
+        )
+
+    elif model_name == "MLP":
+        y_test_aligned, y_pred_test, model, x_scaler = fit_mlp(
+            x_train, y_train, x_test, y_test, model_params, SEED
+        )
+        mae_err_test, rmse_err_test, mape_err_test = compute_metrics(
+            y_test_aligned, y_pred_test
+        )
+
+    else:
+        if model_name == "RF":
+            model = RF(**model_params)
+        elif model_name == "LinReg":
+            model = Ridge(**model_params)
+        elif model_name == "CatBoost":
+            params = dict(model_params)
+            params.setdefault("verbose", False)
+            params.setdefault("random_seed", SEED)
+            model = CatBoostRegressor(**params)
+        else:
+            raise ValueError(f"Unknown model_name: {model_name}")
+
+        x_scaler = StandardScaler()
+        x_scaled_train = x_scaler.fit_transform(x_train)
+        x_scaled_test = x_scaler.transform(x_test)
+
+        model.fit(x_scaled_train, y_train.values.ravel())
+
+        y_pred_test = model.predict(x_scaled_test)
+        mae_err_test, rmse_err_test, mape_err_test = compute_metrics(y_test, y_pred_test)
+
+    return {
+        "cv_mae": round(cv_mae, 2),
+        "cv_rmse": round(cv_rmse, 2),
+        "cv_mape": round(cv_mape, 2),
+        "test_mae": round(float(mae_err_test), 2),
+        "test_rmse": round(float(rmse_err_test), 2),
+        "test_mape": round(float(mape_err_test), 2),
+        "y_pred_test": y_pred_test,
+        "model": model,
+        "x_scaler": x_scaler,
+    }
 
 def make_sequences(
     x_np: np.ndarray,
@@ -561,380 +938,3 @@ def fit_mlp(
 
     y_test_orig = y_test.flatten()
     return y_test_orig, y_pred_test, model, x_scaler
-
-
-def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float, float]:
-    """
-    Compute MAE, RMSE, and MAPE for regression predictions.
-    Parameters
-    ----------
-    y_true : array-like
-        Ground truth values.
-    y_pred : array-like
-        Predicted values.
-
-    Returns
-    -------
-    tuple of floats
-        (mae, rmse, mape)
-    """
-    y_true = np.asarray(y_true).ravel()
-    y_pred = np.asarray(y_pred).ravel()
-
-    mae = mean_absolute_error(y_true, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-    mape = np.mean(np.abs((y_true - y_pred) / np.clip(np.abs(y_true), 1e-8, None))) * 100
-    return mae, rmse, mape
-
-
-def eval_model(
-    x_train: pd.DataFrame,
-    y_train: pd.Series,
-    x_test: pd.DataFrame,
-    y_test: pd.Series,
-    n_splits: int = 3,
-    model_name: Literal["RF", "LinReg", "CatBoost", "LSTM", "MLP"] = "RF",
-    model_params: dict[str, Any] | None = None,
-    SEED: int = 42,
-) -> dict[str, Any]:
-    """
-    Evaluate a time series model using TimeSeriesSplit cross-validation
-    on the training set, then refit on the full train data and evaluate on test.
-
-    Parameters
-    ----------
-    x_train : pd.DataFrame
-        Training features.
-    y_train : pd.Series
-        Training target.
-    x_test : pd.DataFrame
-        Test features.
-    y_test : pd.Series
-        Test target.
-    n_splits : int, default=3
-        Number of time-series CV folds.
-    model_name : {'RF','LinReg','CatBoost','LSTM','MLP'}, default='RF'
-        Model identifier.
-    model_params : dict or None
-        Keyword arguments for the selected model.
-    SEED : int, default=42
-        Random seed for reproducibility.
-
-    Returns
-    -------
-    results : dict
-        - 'cv_mae'   : average MAE over CV folds
-        - 'cv_rmse'  : average RMSE over CV folds
-        - 'cv_mape'  : average MAPE over CV folds
-        - 'test_mae' : MAE on the final test set
-        - 'test_rmse': RMSE on the final test set
-        - 'test_mape': MAPE on the final test set
-        - 'y_pred_test': model predictions on test set
-        - 'model'      : fitted final model
-        - 'x_scaler'   : fitted StandardScaler for X features
-    """
-    np.random.seed(SEED)
-
-    if model_params is None:
-        model_params = {}
-
-    tscv = TimeSeriesSplit(n_splits=n_splits)
-    cv_mae_list: list[float] = []
-    cv_rmse_list: list[float] = []
-    cv_mape_list: list[float] = []
-
-    # --- Cross-validation ---
-    for fold, (train_idx, val_idx) in enumerate(tscv.split(x_train), 1):
-        x_train_cv = x_train.iloc[train_idx, :].copy()
-        x_val_cv = x_train.iloc[val_idx, :].copy()
-        y_train_cv = y_train.iloc[train_idx].copy()
-        y_val_cv = y_train.iloc[val_idx].copy()
-
-        if model_name == "LSTM":
-            y_val_aligned, y_pred_cv, model, _ = fit_lstm(
-                x_train_cv, y_train_cv, x_val_cv, y_val_cv, model_params, SEED
-            )
-            mae_err, rmse_err, mape_err = compute_metrics(y_val_aligned, y_pred_cv)
-
-        elif model_name == "MLP":
-            y_val_aligned, y_pred_cv, model, _ = fit_mlp(
-                x_train_cv, y_train_cv, x_val_cv, y_val_cv, model_params, SEED
-            )
-            mae_err, rmse_err, mape_err = compute_metrics(y_val_aligned, y_pred_cv)
-
-        else:
-            # Scale features
-            x_scaler = StandardScaler()
-            x_scaled_cv_train = x_scaler.fit_transform(x_train_cv)
-            x_scaled_cv_val = x_scaler.transform(x_val_cv)
-
-            y_train_cv_vals = y_train_cv.values.ravel()
-            y_val_cv_vals = y_val_cv.values.ravel()
-
-            # Construct model
-            if model_name == "RF":
-                model = RF(**model_params)
-            elif model_name == "LinReg":
-                model = Ridge(**model_params)
-            elif model_name == "CatBoost":
-                params = dict(model_params)
-                params.setdefault("verbose", False)
-                params.setdefault("random_seed", SEED)
-                model = CatBoostRegressor(**params)
-            else:
-                raise ValueError(f"Unknown model_name: {model_name}")
-
-            model.fit(x_scaled_cv_train, y_train_cv_vals)
-            y_pred_cv = model.predict(x_scaled_cv_val)
-
-            mae_err, rmse_err, mape_err = compute_metrics(y_val_cv_vals, y_pred_cv)
-
-        cv_mae_list.append(float(mae_err))
-        cv_rmse_list.append(float(rmse_err))
-        cv_mape_list.append(float(mape_err))
-
-    cv_mae = float(np.mean(cv_mae_list))
-    cv_rmse = float(np.mean(cv_rmse_list))
-    cv_mape = float(np.mean(cv_mape_list))
-
-    # --- Final model training ---
-    if model_name == "LSTM":
-        y_test_aligned, y_pred_test_aligned, model, x_scaler = fit_lstm(
-            x_train, y_train, x_test, y_test, model_params, SEED
-        )
-        seq_len = model_params.get("seq_len", 48)
-
-        y_pred_test = np.full(len(y_test), np.nan, dtype=float)
-        y_pred_test[seq_len:] = y_pred_test_aligned
-
-        mae_err_test, rmse_err_test, mape_err_test = compute_metrics(
-            y_test.values[seq_len:], y_pred_test[seq_len:]
-        )
-
-    elif model_name == "MLP":
-        y_test_aligned, y_pred_test, model, x_scaler = fit_mlp(
-            x_train, y_train, x_test, y_test, model_params, SEED
-        )
-        mae_err_test, rmse_err_test, mape_err_test = compute_metrics(
-            y_test_aligned, y_pred_test
-        )
-
-    else:
-        if model_name == "RF":
-            model = RF(**model_params)
-        elif model_name == "LinReg":
-            model = Ridge(**model_params)
-        elif model_name == "CatBoost":
-            params = dict(model_params)
-            params.setdefault("verbose", False)
-            params.setdefault("random_seed", SEED)
-            model = CatBoostRegressor(**params)
-        else:
-            raise ValueError(f"Unknown model_name: {model_name}")
-
-        x_scaler = StandardScaler()
-        x_scaled_train = x_scaler.fit_transform(x_train)
-        x_scaled_test = x_scaler.transform(x_test)
-
-        model.fit(x_scaled_train, y_train.values.ravel())
-
-        y_pred_test = model.predict(x_scaled_test)
-        mae_err_test, rmse_err_test, mape_err_test = compute_metrics(y_test, y_pred_test)
-
-    return {
-        "cv_mae": round(cv_mae, 2),
-        "cv_rmse": round(cv_rmse, 2),
-        "cv_mape": round(cv_mape, 2),
-        "test_mae": round(float(mae_err_test), 2),
-        "test_rmse": round(float(rmse_err_test), 2),
-        "test_mape": round(float(mape_err_test), 2),
-        "y_pred_test": y_pred_test,
-        "model": model,
-        "x_scaler": x_scaler,
-    }
-
-
-def plot_predictions(y_true: pd.Series, y_pred: pd.Series) -> None:
-    """
-    Plots interactive predictions with Plotly
-    """
-    # Assume y_test and y_pred are pandas Series with a datetime index
-    fig = go.Figure()
-
-    # Add actual values
-    fig.add_trace(go.Scatter(
-        x=y_true.index, y=y_true.values,
-        mode='lines',
-        name='Actual',
-        line=dict(width=2)
-    ))
-
-    # Add predicted values
-    fig.add_trace(go.Scatter(
-        x=y_true.index, y=y_pred,
-        mode='lines',
-        name='Predicted',
-        line=dict(width=1)
-    ))
-
-    # Customize layout
-    fig.update_layout(
-        title='Actual vs Predicted Values',
-        xaxis_title='Date',
-        yaxis_title='Value',
-        legend=dict(x=0, y=1),
-        height=500
-    )
-
-    fig.show()
-
-
-def remove_outliers_zscore(
-    df: pd.DataFrame,
-    threshold: float = 3.0,
-    nan_treatment: str = 'ffill',
-    stats: dict[str, tuple[float, float]] | None = None
-) -> tuple[pd.DataFrame, dict[str, tuple[float, float]]]:
-    """
-    Replace outliers (per-column z-score > threshold) with NaN.
-    Optionally forward-fills or drops the resulting NaNs.
-    If stats are provided, uses them; otherwise computes and returns them
-    (so the same parameters can be applied to test data).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input data (numeric/mixed).
-    threshold : float
-        |z| cutoff.
-    nan_treatment : {'ffill','drop'}
-        How to handle NaNs.
-    stats : dict or None
-        Precomputed {col: (mean, std)}.
-
-    Returns
-    -------
-    df_masked : pd.DataFrame
-        DataFrame with outliers replaced and NaN treatment applied.
-    fit_stats : Dict[str,(float,float)]
-        Mean and std used (save for test).
-    """
-    df_masked = df.copy()
-    numeric_cols = df.select_dtypes(include=np.number).columns
-    fit_stats: dict[str, tuple[float, float]] = {}
-
-    if stats is None:
-        for col in numeric_cols:
-            fit_stats[col] = (df[col].mean(), df[col].std(ddof=0))
-    else:
-        fit_stats = stats
-
-    total_changed = 0
-
-    for col in numeric_cols:
-        mean, std = fit_stats[col]
-        if std == 0:
-            print(f"{col}: std==0, skipped")
-            continue
-
-        z = np.abs((df[col] - mean) / std)
-        changed = int((z > threshold).sum())
-        total_changed += changed
-
-        print(f"{col}: {changed} replaced")
-
-        df_masked.loc[z > threshold, col] = np.nan
-
-    print(f"TOTAL replaced: {total_changed}")
-
-    if nan_treatment == 'ffill':
-        df_masked = df_masked.ffill()
-    elif nan_treatment == 'drop':
-        df_masked = df_masked.dropna()
-    else:
-        raise ValueError(f"nan_treatment '{nan_treatment}' not recognized.")
-
-    return df_masked, fit_stats
-
-
-def plot_errors(
-    x_true: pd.DataFrame,
-    y_true: pd.Series | pd.DataFrame,
-    y_pred: np.ndarray | list,
-    error: Literal["mae", "mape"],
-    error_threshold: float,
-    rolling_window: int
-) -> None:
-    """
-    Plot prediction errors with detected anomalies and threshold lines.
-
-    Parameters
-    ----------
-    x_true : pd.DataFrame
-        Original input data (with datetime index).
-    y_true : pd.Series or pd.DataFrame
-        True target values.
-    y_pred : array-like
-        Predicted target values.
-    error : {"mae", "mape"}
-        Type of error to visualize.
-    error_threshold : float
-        Threshold above which points are flagged as anomalies.
-    rolling_window: int
-        Rolling window for the error rolling aggregation
-    """
-
-    # Create a DataFrame with true values and compute the error
-    y_test_err = pd.DataFrame(y_true)
-    if error == "mae":
-        y_test_err['Error'] = abs(y_test_err['Power'] - y_pred)
-    elif error == 'rmse':
-        y_test_err['Error'] = np.sqrt((y_test_err['Power'] - y_pred)**2)
-    elif error == 'mape':
-        y_test_err['Error'] = abs(y_test_err['Power'] - y_pred) / y_test_err['Power'] * 100
-
-    # Ensure both y_test_err and x_true have datetime indices
-    y_test_err.index = pd.to_datetime(y_test_err.index)
-    x_true.index = pd.to_datetime(x_true.index)
-
-    # Initialize Plotly figure
-    fig = go.Figure()
-
-    # Plot the error over time
-    fig.add_trace(go.Scatter(
-        x=y_test_err.index,
-        y=y_test_err['Error'].values,
-        mode='lines',
-        name='Error',
-        line=dict(width=2)
-    ))
-
-    # Add horizontal line for static 95th percentile threshold
-    fig.add_hline(
-        y=error_threshold,
-        line_color="black",
-        annotation_text="Upper Threshold",
-        annotation_position="bottom right"
-    )
-
-    # Plot rolling median error for smoothed trend
-    fig.add_trace(go.Scatter(
-        x=y_test_err.index,
-        y=y_test_err['Error'].rolling(rolling_window).median(),
-        mode='lines',
-        name='Rolling Median Error',
-        line=dict(width=2)
-    ))
-
-    # Configure layout settings
-    fig.update_layout(
-        title='Prediction Error and Anomaly Detection',
-        xaxis_title='Date',
-        yaxis_title='Error',
-        legend=dict(x=0, y=1),
-        height=500,
-        template='plotly_white'
-    )
-
-    fig.show()
-
