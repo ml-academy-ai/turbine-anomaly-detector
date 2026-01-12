@@ -1,0 +1,14 @@
+feature_eng_pipeline:
+  rename_columns:
+    WindSpeed: "wind_speed"
+    WindDirAbs: "wind_dir_abs"
+    Power: "power"
+    Pitch: "pitch"
+    GenRPM: "gen_rpm"
+    WindDirRel: "wind_dir_rel"
+    NacelTemp: "nacel_temp"
+    GenPh1Temp: "gen_phase_temp"
+    RotorRPM: "rotor_rpm"
+    EnvirTemp: "envir_temp"
+    GearOilTemp: "gear_oil_temp"
+    GearBearTemp: "gear_bear_temp"
