@@ -33,6 +33,7 @@ dependencies = [
     "matplotlib>=3.8,<4",
     "seaborn>=0.13,<0.14",
     "kedro-datasets>=9.1.1",
+    "kedro-viz>=12.2.0",
 ]
 
 [project.scripts]

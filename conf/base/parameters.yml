@@ -76,3 +76,38 @@ feature_eng_pipeline:
       windows: [3, 6]
 
   target: 'power'
+
+
+training_pipeline:
+  test_fraction: 0.2 # 20% of the data for testing
+  n_folds: 3
+
+  optuna_search:
+    model: 'CatBoost'
+    n_trials: 5
+    model_params:
+      CatBoost:
+        iterations: 10
+        random_seed: 42
+
+        depth:
+          range: [ 5, 12 ]
+          log: False
+          type: int
+
+        learning_rate:
+          range: [0.01, 0.3]
+          log: True
+          type: float
+
+        l2_leaf_reg:
+          range: [0.1, 10.0]
+          log: True
+          type: float
+
+      RandomForest: # as an example
+        n_estimators: 100
+        max_depth:
+          range: [20, 30]
+          log: False
+          type: int
