@@ -12,3 +12,67 @@ feature_eng_pipeline:
     EnvirTemp: "envir_temp"
     GearOilTemp: "gear_oil_temp"
     GearBearTemp: "gear_bear_temp"
+  
+  drop_columns: ["Timestamps"]
+
+  diff_outliers_thresholds:
+    wind_speed: 12
+    wind_dir_abs: 70
+    power: 200
+    pitch: 12
+    gen_rpm: 450
+    wind_dir_rel: 9
+    nacel_temp: 40
+    gen_phase_temp: 40
+    rotor_rpm: 20
+    envir_temp: 17
+    gear_oil_temp: 20
+    gear_bear_temp: 35
+
+  smooth_signal:
+    columns: [
+      wind_speed, 
+      wind_dir_abs, 
+      pitch, 
+      gen_rpm, 
+      wind_dir_rel, 
+      nacel_temp, 
+      gen_phase_temp, 
+      rotor_rpm, 
+      envir_temp, 
+      gear_oil_temp, 
+      gear_bear_temp
+    ]
+    window: 3
+    method: mean
+
+  lag_features:
+    gen_rpm: [1, 2, 3]
+    gen_phase_temp: [1, 2, 3]
+    wind_speed: [1, 2, 3]
+
+  
+  rolling_features: # just an example, we can add more stats and windows
+    gen_rpm:
+      stats: [median]
+      windows: [3, 6]
+    gen_phase_temp:
+      stats: [mean, max]
+      windows: [3, 6]
+    wind_speed:
+      stats: [max]
+      windows: [3, 6]
+    wind_dir_abs:
+      stats: [max]
+      windows: [3, 6]
+    wind_dir_rel:
+      stats: [max]
+      windows: [3, 6]
+    pitch:
+      stats: [max]
+      windows: [3, 6]
+    rotor_rpm:
+      stats: [max]
+      windows: [3, 6]
+
+  target: 'power'
