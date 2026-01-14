@@ -111,3 +111,7 @@ training_pipeline:
           range: [20, 30]
           log: False
           type: int
+
+mlflow:
+  prod_experiment_name: prod_model_training
+  registered_model_name: wind_power_predictor

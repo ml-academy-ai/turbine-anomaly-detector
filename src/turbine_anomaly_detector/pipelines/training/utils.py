@@ -9,6 +9,8 @@ from sklearn.model_selection import TimeSeriesSplit
 from catboost import CatBoostRegressor
 from sklearn.ensemble import RandomForestRegressor as RF
 from turbine_anomaly_detector.common.metrics import compute_metrics
+import mlflow
+import joblib
 
 SEED = 42
 
@@ -185,3 +187,30 @@ def eval_model(
     }
 
 
+class MLModelWrapper(mlflow.pyfunc.PythonModel):
+    """
+    PyFunc model wrapper with bundled scaler.
+    Expects unscaled, feature-engineered DataFrame.
+    """
+
+    def __init__(self, model_name: str):
+        self.model_name = model_name.lower()
+
+    def load_context(self, context):
+        # load scaler
+        self.scaler = joblib.load(context.artifacts["scaler"])
+
+        # load model
+        if self.model_name == "catboost":
+            self.model = CatBoostRegressor()
+            self.model.load_model(context.artifacts["model"])
+        elif self.model_name in ["rf", "random_forest"]:
+            self.model = joblib.load(context.artifacts["model"])
+        else:
+            raise ValueError(f"Unknown model_name: {self.model_name}")
+
+    def predict(
+        self, context: mlflow.pyfunc.PythonModelContext, model_input: pd.DataFrame
+    ) -> np.ndarray:  # ty: ignore[invalid-method-override]
+        x_scaled = self.scaler.transform(model_input)
+        return self.model.predict(x_scaled)

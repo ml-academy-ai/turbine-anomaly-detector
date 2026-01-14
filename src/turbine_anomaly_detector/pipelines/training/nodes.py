@@ -2,6 +2,17 @@ import pandas as pd
 from typing import Any
 import optuna
 from .utils import objective, eval_model
+from sklearn.preprocessing import StandardScaler
+from catboost import CatBoostRegressor
+from sklearn.ensemble import RandomForestRegressor as RF
+from turbine_anomaly_detector.common.metrics import compute_metrics
+import mlflow
+from mlflow.models.signature import infer_signature
+from datetime import datetime
+from pathlib import Path
+import joblib
+from .utils import MLModelWrapper
+from mlflow.tracking import MlflowClient
 
 def train_test_split(
     features: pd.DataFrame,
@@ -82,3 +93,234 @@ def tune_hyperparameters(
             "cv_mape": cv_results["cv_mape"],
         },
     }
+
+
+def fit_best_model(
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    y_test: pd.Series,
+    params: dict[str, Any],
+    tuning_results: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Trains a model using optimized hyperparameters found during hyperparameter tuning.
+
+    Parameters
+    ----------
+    x_train : pd.DataFrame
+        Training features. Should contain all feature columns used during
+        hyperparameter optimization.
+    y_train : pd.Series
+        Training target values. Must have the same length as x_train.
+    params : Dict[str, Any]
+        Configuration dictionary containing:
+        - 'optuna_search': dict with keys:
+            - 'model': str, model name to train. Supported values: 'CatBoost', 'RF'
+    tuning_results : Dict[str, Any]
+        Dictionary from tune_hyperparameters containing:
+        - 'best_params': Dict[str, Any], optimized hyperparameters
+        - 'cv_results': Dict[str, Any], cross-validation results (optional, will be
+          included in return if present)
+
+    Returns
+    -------
+    Dict[str, Any]
+        Dictionary containing:
+        - 'model': Trained model instance (CatBoostRegressor or RandomForestRegressor)
+        - 'best_params': Dict[str, Any], copy of the best_params used for training
+        - 'x_scaler': StandardScaler, fitted scaler used to transform features
+        - 'input_example': pd.DataFrame, first 5 rows of x_train (used for MLflow
+          signature inference)
+        - 'cv_results': Dict[str, Any], cross-validation results from best model
+          (if present in tuning_results)
+    """
+
+    model_name = params["optuna_search"]["model"]
+
+    x_scaler = StandardScaler()
+    x_scaled = x_scaler.fit_transform(x_train)
+
+    if model_name == "CatBoost":
+        model = CatBoostRegressor(
+            **tuning_results["best_params"],
+            allow_writing_files=False,
+            verbose=False,
+        )
+    elif model_name == "RF":
+        model = RF(**tuning_results["best_params"])
+    else:
+        raise ValueError(f"Unknown model_name: {model_name}")
+
+    model.fit(x_scaled, y_train)
+
+    y_pred_test = model.predict(x_scaler.transform(x_test))
+    errors = compute_metrics(y_test, y_pred_test)
+
+    return {
+        "model": model,
+        "x_scaler": x_scaler,
+        "input_example": x_train.iloc[:5].copy(),
+        "test_metrics": {
+            "test_mae": errors["mae"],
+            "test_rmse": errors["rmse"],
+            "test_mape": errors["mape"],
+        },
+    }
+
+
+def log_to_mlflow(
+    hyperparams_tuning_results: dict[str, Any],
+    train_results: dict[str, Any],
+    train_pipeline_params: dict[str, Any],
+    mlflow_params: dict[str, Any],
+) -> str:
+    """
+    Log model, metrics, and parameters to MLflow.
+
+    Parameters
+    ----------
+    hyperparams_tuning_results : dict[str, Any]
+        Contains 'best_params' and 'cv_metrics' (cv_mae, cv_rmse, cv_mape).
+    train_results : dict[str, Any]
+        Contains 'model', 'x_scaler', 'input_example', and 'test_metrics'.
+    train_pipeline_params : dict[str, Any]
+        Contains 'optuna_search' with 'model' key.
+    mlflow_params : dict[str, Any]
+        Contains 'prod_experiment_name'.
+
+    Returns
+    -------
+    str
+        Model URI of the logged PyFunc model.
+    """
+    # Set MLflow tracking URI and experiment
+    mlflow.set_experiment(mlflow_params["prod_experiment_name"])
+
+    # Get model name and determine run name
+    model_name = train_pipeline_params["optuna_search"]["model"]
+    # Default run name with timestamp for uniqueness
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_name = f"{model_name}_{timestamp}_candidate"
+
+    # Create temporary directory for artifacts
+    temp_models_dir = Path("data/06_models")
+    temp_models_dir.mkdir(parents=True, exist_ok=True)
+
+    with mlflow.start_run(run_name=run_name):
+        # Log metrics and parameters
+        mlflow.log_metrics(hyperparams_tuning_results["cv_metrics"])
+        mlflow.log_metrics(train_results["test_metrics"])
+        mlflow.log_params(hyperparams_tuning_results["best_params"])
+
+        # Create signature from input example
+        input_example = train_results["input_example"]
+        x_scaler = train_results["x_scaler"]
+        best_model = train_results["model"]
+        y_example = best_model.predict(x_scaler.transform(input_example))
+        signature = infer_signature(input_example, y_example)
+
+        # Save model and scaler artifacts depending on the model type
+        if model_name.lower() == "catboost":
+            model_path = temp_models_dir / "catboost_model.cbm"
+            best_model.save_model(str(model_path))
+        elif model_name.lower() in ["rf", "random_forest"]:
+            model_path = temp_models_dir / "random_forest_model.pkl"
+            joblib.dump(best_model, model_path)
+        else:
+            raise ValueError(f"Unknown model_name: {model_name}")
+
+        scaler_path = temp_models_dir / "x_scaler.joblib"
+        joblib.dump(x_scaler, scaler_path)
+
+        # Prepare artifacts dictionary for MLModelWrapper
+        artifacts = {
+            "model": str(model_path),
+            "scaler": str(scaler_path),
+        }
+
+        # Log PyFunc model using MLModelWrapper
+        model_info = mlflow.pyfunc.log_model(
+            name="model",
+            python_model=MLModelWrapper(model_name=model_name),
+            artifacts=artifacts,
+            signature=signature,
+            input_example=input_example,
+            tags={
+                "best_model": "true",
+                "model_type": model_name,
+                "run_name": run_name,
+            },
+        )
+    # 8) Return model URI to later register the model
+    return model_info.model_uri
+
+
+def register_model(
+    model_uri: str,
+    registered_model_name: str,
+) -> str:
+    """
+    Register a model in MLflow add 'challenger' alias.
+    """
+    client = MlflowClient()
+
+    # 1) Register model
+    model_info = mlflow.register_model(
+        model_uri=model_uri,
+        name=registered_model_name,
+    )
+
+    version = str(model_info.version)
+
+    # 2) Add alias
+    client.set_registered_model_alias(
+        name=registered_model_name, alias="challenger", version=version
+    )
+    return version
+
+
+def validate_challenger(registered_model_name: str) -> None:
+    """
+    Validates challenger model against champion and promote if better (lower MAPE).
+
+    Parameters
+    ----------
+    registered_model_name : str
+        The name of the registered model in MLflow to validate.
+
+    Returns
+    -------
+    None
+        This function does not return any value. It modifies model aliases in MLflow.
+    """
+    client = MlflowClient()
+
+    def get_test_mape(alias: str) -> float:
+        """
+        Helper function to retrieve test_mape metric from MLflow for a model alias.
+        """
+        info = client.get_model_version_by_alias(registered_model_name, alias)
+        assert info.run_id is not None
+        run = client.get_run(info.run_id)
+        return float(run.data.metrics["test_mape"])
+
+    challenger_mape = get_test_mape("challenger")
+
+    # get champion mape and if not exists, set it to infinity, so challenger will be promoted
+    try:
+        champion_mape = get_test_mape("champion")
+    except Exception:
+        champion_mape = float("inf")
+
+    if challenger_mape < champion_mape:
+        client.delete_registered_model_alias(registered_model_name, "champion")
+        client.set_registered_model_alias(
+            name=registered_model_name,
+            alias="champion",
+            version=client.get_model_version_by_alias(
+                registered_model_name, "challenger"
+            ).version,
+        )
+        # delete challenger alias after promotion
+        client.delete_registered_model_alias(registered_model_name, "challenger")
