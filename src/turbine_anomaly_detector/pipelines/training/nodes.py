@@ -1,11 +1,12 @@
 import pandas as pd
 from typing import Any
 import optuna
+from turbine_anomaly_detector.common.metrics import compute_metrics
+from turbine_anomaly_detector.common.mlflow_utils import load_model_by_alias
 from .utils import objective, eval_model
 from sklearn.preprocessing import StandardScaler
 from catboost import CatBoostRegressor
 from sklearn.ensemble import RandomForestRegressor as RF
-from turbine_anomaly_detector.common.metrics import compute_metrics
 import mlflow
 from mlflow.models.signature import infer_signature
 from datetime import datetime
@@ -256,14 +257,24 @@ def log_to_mlflow(
     return model_info.model_uri
 
 
-def register_model(
-    model_uri: str,
-    registered_model_name: str,
-) -> str:
+def register_model(model_uri: str, mlflow_params: dict[str, Any]) -> None:
     """
-    Register a model in MLflow add 'challenger' alias.
+    Register a model in MLflow and add candidate alias.
+
+    Parameters
+    ----------
+    model_uri : str
+        The MLflow model URI to register.
+    mlflow_params : dict[str, Any]
+        MLflow config containing 'registered_model_name' and 'model_aliases'.
+
+    Returns
+    -------
+    str
+        The registered model version.
     """
     client = MlflowClient()
+    registered_model_name = mlflow_params["registered_model_name"]
 
     # 1) Register model
     model_info = mlflow.register_model(
@@ -275,52 +286,66 @@ def register_model(
 
     # 2) Add alias
     client.set_registered_model_alias(
-        name=registered_model_name, alias="challenger", version=version
+        name=registered_model_name, 
+        alias=mlflow_params["model_aliases"]["candidate"], 
+        version=version
     )
-    return version
+    return None
 
-
-def validate_challenger(registered_model_name: str) -> None:
+def validate_challenger(
+    x_test: pd.DataFrame,
+    y_test: pd.Series,
+    training_results: dict[str, Any],
+    mlflow_params: dict[str, Any]
+) -> None:
     """
-    Validates challenger model against champion and promote if better (lower MAPE).
+    Validates candidate model against production and promote if better (lower MAPE).
+
+    Loads champion model from registry using load_model_by_alias, predicts on current
+    test set, computes MAPE, and compares with challenger's MAPE.
+    Promotes challenger to production if better.
 
     Parameters
     ----------
-    registered_model_name : str
-        The name of the registered model in MLflow to validate.
+    x_test : pd.DataFrame
+        Test features (same split as used for challenger).
+    y_test : pd.Series
+        Test target (same split as used for challenger).
+    training_results : dict[str, Any]
+        From fit_best_model, contains 'test_metrics' with challenger's test_mape.
+    mlflow_params : dict[str, Any]
+        MLflow config containing 'registered_model_name' and 'model_aliases'.
 
     Returns
     -------
     None
-        This function does not return any value. It modifies model aliases in MLflow.
+        Modifies model aliases in MLflow.
     """
     client = MlflowClient()
+    registered_model_name = mlflow_params["registered_model_name"]
+    candidate_alias = mlflow_params["model_aliases"]["candidate"]
+    production_alias = mlflow_params["model_aliases"]["production"]
 
-    def get_test_mape(alias: str) -> float:
-        """
-        Helper function to retrieve test_mape metric from MLflow for a model alias.
-        """
-        info = client.get_model_version_by_alias(registered_model_name, alias)
-        assert info.run_id is not None
-        run = client.get_run(info.run_id)
-        return float(run.data.metrics["test_mape"])
-
-    challenger_mape = get_test_mape("challenger")
-
-    # get champion mape and if not exists, set it to infinity, so challenger will be promoted
+    # Load champion model and predict on current test set, compute MAPE
     try:
-        champion_mape = get_test_mape("champion")
+        champion_model = load_model_by_alias(registered_model_name, alias=production_alias)
+        y_pred = champion_model.predict(x_test)
+        champion_mape = compute_metrics(y_test, y_pred)["mape"]
     except Exception:
-        champion_mape = float("inf")
+        champion_mape = float("inf")  # No champion exists, promote challenger
+
+    challenger_mape = training_results["test_metrics"]["test_mape"]
 
     if challenger_mape < champion_mape:
-        client.delete_registered_model_alias(registered_model_name, "champion")
+        client.delete_registered_model_alias(registered_model_name, production_alias)
         client.set_registered_model_alias(
             name=registered_model_name,
-            alias="champion",
+            alias=production_alias,
             version=client.get_model_version_by_alias(
-                registered_model_name, "challenger"
+                registered_model_name, candidate_alias
             ).version,
         )
-        # delete challenger alias after promotion
-        client.delete_registered_model_alias(registered_model_name, "challenger")
+        client.delete_registered_model_alias(
+            registered_model_name, candidate_alias
+        )
+    return None

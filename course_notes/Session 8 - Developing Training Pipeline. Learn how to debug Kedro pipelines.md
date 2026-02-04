@@ -510,6 +510,100 @@ node(
 ),
 ```
 
+### Now, we need to re-fit the best model on the entire dataset
+Note that for now, we only selected the best hyperparameters.
+
+It's better to separate the final model fitting to a new node because it's really
+a separate task.
+
+For this, we create a new node:
+```python
+def fit_best_model(
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    x_test: pd.DataFrame,
+    y_test: pd.Series,
+    params: dict[str, Any],
+    tuning_results: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Trains a model using optimized hyperparameters found during hyperparameter tuning.
+
+    Parameters
+    ----------
+    x_train : pd.DataFrame
+        Training features. Should contain all feature columns used during
+        hyperparameter optimization.
+    y_train : pd.Series
+        Training target values. Must have the same length as x_train.
+    params : Dict[str, Any]
+        Configuration dictionary containing:
+        - 'optuna_search': dict with keys:
+            - 'model': str, model name to train. Supported values: 'CatBoost', 'RF'
+    tuning_results : Dict[str, Any]
+        Dictionary from tune_hyperparameters containing:
+        - 'best_params': Dict[str, Any], optimized hyperparameters
+        - 'cv_results': Dict[str, Any], cross-validation results (optional, will be
+          included in return if present)
+
+    Returns
+    -------
+    Dict[str, Any]
+        Dictionary containing:
+        - 'model': Trained model instance (CatBoostRegressor or RandomForestRegressor)
+        - 'best_params': Dict[str, Any], copy of the best_params used for training
+        - 'x_scaler': StandardScaler, fitted scaler used to transform features
+        - 'input_example': pd.DataFrame, first 5 rows of x_train (used for MLflow
+          signature inference)
+        - 'cv_results': Dict[str, Any], cross-validation results from best model
+          (if present in tuning_results)
+    """
+
+    model_name = params["optuna_search"]["model"]
+
+    x_scaler = StandardScaler()
+    x_scaled = x_scaler.fit_transform(x_train)
+
+    if model_name == "CatBoost":
+        model = CatBoostRegressor(
+            **tuning_results["best_params"],
+            allow_writing_files=False,
+            verbose=False,
+        )
+    elif model_name == "RF":
+        model = RF(**tuning_results["best_params"])
+    else:
+        raise ValueError(f"Unknown model_name: {model_name}")
+
+    model.fit(x_scaled, y_train)
+
+    y_pred_test = model.predict(x_scaler.transform(x_test))
+    errors = compute_metrics(y_test, y_pred_test)
+
+    return {
+        "model": model,
+        "x_scaler": x_scaler,
+        "input_example": x_train.iloc[:5].copy(),
+        "test_metrics": {
+            "test_mae": errors["mae"],
+            "test_rmse": errors["rmse"],
+            "test_mape": errors["mape"],
+        },
+    }
+```
+
+Now, we can add this node to the pipeline:
+```python
+node(
+   func=fit_best_model,
+   inputs=["x_train", "y_train", "x_test", "y_test", "params:training_pipeline", "tuning_results"],
+   outputs='training_results',
+),
+```
+
+### We will need to create other nodes to the Training Pipeline when we add MLflow on the next session.
+
+
 ### Debugging in PyCharm
 
 **Configure PyCharm Debugger for Kedro:**

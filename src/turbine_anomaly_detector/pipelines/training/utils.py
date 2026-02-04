@@ -1,4 +1,3 @@
-from tkinter import E
 import optuna
 from typing import Any
 import numpy as np
@@ -13,6 +12,7 @@ import mlflow
 import joblib
 
 SEED = 42
+
 
 def objective(
     trial: optuna.Trial, 

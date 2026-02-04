@@ -1,5 +1,12 @@
 from kedro.pipeline import Pipeline, node
-from .nodes import train_test_split, tune_hyperparameters, fit_best_model, log_to_mlflow, register_model, validate_challenger
+from .nodes import (
+    train_test_split,
+    tune_hyperparameters,
+    fit_best_model,
+    log_to_mlflow,
+    register_model,
+    validate_challenger,
+)
 
 
 def create_pipeline(**kwargs) -> Pipeline:
@@ -26,12 +33,17 @@ def create_pipeline(**kwargs) -> Pipeline:
         ),
         node(
             func=register_model,
-            inputs=["mlflow_model_uri", "params:mlflow.registered_model_name"],
-            outputs="model_version",
+            inputs=["mlflow_model_uri", "params:mlflow"],
+            outputs=None,
         ),
         node(
             func=validate_challenger,
-            inputs=["params:mlflow.registered_model_name"],
+            inputs=[
+                "x_test",
+                "y_test",
+                "training_results",
+                "params:mlflow",
+            ],
             outputs=None,
         ),
     ])

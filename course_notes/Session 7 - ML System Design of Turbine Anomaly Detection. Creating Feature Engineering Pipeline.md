@@ -342,12 +342,12 @@ So, let's create one more node for it.
 ```python
 def get_features_and_target(
     df: pd.DataFrame, target: str
-) -> tuple[pd.DataFrame, pd.Series]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Get the features and target from the dataframe.
     """
     x = df.drop(columns=target).copy()
-    y = df[target].copy()
+    y = pd.DataFrame(df[target].copy(), columns=[target])
     return x, y
 ```
 
