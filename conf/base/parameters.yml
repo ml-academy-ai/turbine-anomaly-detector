@@ -112,6 +112,9 @@ training_pipeline:
           log: False
           type: int
 
+monitoring_pipeline:
+  smoothing_window: 5
+
 mlflow:
   prod_experiment_name: prod_model_training
   registered_model_name: wind_power_predictor

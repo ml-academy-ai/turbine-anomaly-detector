@@ -502,11 +502,6 @@ predictions:
 
 ### Create node `conpute_anomaly_metrics`
 ```python
-"""Monitoring pipeline nodes."""
-"""Monitoring pipeline nodes."""
-import pandas as pd
-import numpy as np
-
 def compute_anomaly_metrics(y_pred: pd.Series, y_true: pd.Series) -> dict[str, float]:
     """
     Compute MAPE metric from predictions and target data.
@@ -526,7 +521,7 @@ def compute_anomaly_metrics(y_pred: pd.Series, y_true: pd.Series) -> dict[str, f
     y_true = y_true.values.ravel()
     y_pred = y_pred.values.ravel()
     mape = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
-    return mape
+    return pd.DataFrame(mape, columns=["metric"])
 ```
 
 ### Add node to the pipeline
@@ -545,6 +540,27 @@ def create_pipeline(**kwargs) -> Pipeline:
             outputs="anomaly_metrics",
         ),
     ])
+```
+### Add metric smoothing Node
+```python
+def smooth_metric(metric: pd.DataFrame, window: int) -> pd.DataFrame:
+    """
+    Smooth a metric using a rolling window.
+    """
+    return metric['metric'].rolling(window=window).median()
+```
+### Add parameters to the config file
+```yaml
+monitoring_pipeline:
+  smoothing_window: 5
+```
+### Add Node to the pipeline
+```python
+node(
+    func=smooth_metric,
+    inputs=["anomaly_metrics", "params:monitoring_pipeline.smoothing_window"],
+    outputs="smoothed_anomaly_metrics",
+),
 ```
 ### Add to Pipeline Registry
 ```python

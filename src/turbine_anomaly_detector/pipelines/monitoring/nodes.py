@@ -21,4 +21,10 @@ def compute_anomaly_metrics(y_pred: pd.Series, y_true: pd.Series) -> dict[str, f
     y_true = y_true.values.ravel()
     y_pred = y_pred.values.ravel()
     mape = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
-    return mape
+    return pd.DataFrame(mape, columns=["metric"])
+
+def smooth_metric(metric: pd.DataFrame, window: int) -> pd.DataFrame:
+    """
+    Smooth a metric using a rolling window.
+    """
+    return metric['metric'].rolling(window=window).median()
