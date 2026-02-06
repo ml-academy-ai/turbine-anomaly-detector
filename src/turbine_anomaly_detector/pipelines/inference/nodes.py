@@ -2,6 +2,7 @@
 from typing import Any
 import pandas as pd
 from turbine_anomaly_detector.common.mlflow_utils import load_model_by_alias
+from app_data_manager.data_manager import DataManager
 
 
 def load_champion_model(mlflow_params: dict[str, Any]) -> Any:
@@ -44,3 +45,38 @@ def predict(features_data: pd.DataFrame, champion_model: Any) -> pd.DataFrame:
     """
     predictions = champion_model.predict(features_data)
     return pd.DataFrame(predictions, columns=["predict_power"])
+
+
+def save_predictions_to_db(
+    y_pred: pd.Series,
+    data_timestamps: pd.Timestamp,
+    data_manager_config: dict[str, Any],
+) -> None:
+    """
+    Save predictions to the SQLite database using DataManager.
+
+    Args:
+        y_pred: Predicted values as a Series
+        data_manager_config: DataManager configuration dictionary
+    """
+    # Initialize DataManager
+    data_manager = DataManager(data_manager_config)
+    # Convert input timestamps to pandas datetime
+    timestamps = pd.to_datetime(data_timestamps["Timestamps"])
+
+    # Normalize timestamps to string format expected by the database
+    # This works for both Series-like inputs and single Timestamp values
+    timestamps_str = timestamps.dt.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Create predictions DataFrame
+    predictions_df = pd.DataFrame(
+        {
+            "Timestamps": timestamps_str,
+            "predict_power": y_pred.values.ravel(),
+        }
+    )
+    # Save to predictions table
+    data_manager.insert_data_to_db(
+        new_data=predictions_df,
+        table_name=data_manager.predictions_table_name
+    )

@@ -236,3 +236,9 @@ def load_inference_batch(
     data_manager = DataManager(data_manager_config)
     df = data_manager.get_last_n_points(n=batch_size, table_name=table_name)
     return df
+
+def get_data_timestamps(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Get the current timestamp from the dataframe.
+    """
+    return pd.DataFrame(df["Timestamps"].values, columns=["Timestamps"])

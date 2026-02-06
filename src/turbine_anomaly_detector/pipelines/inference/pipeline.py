@@ -1,5 +1,5 @@
 from kedro.pipeline import Pipeline, node
-from .nodes import load_champion_model, predict
+from .nodes import load_champion_model, predict, save_predictions_to_db
 
 
 def create_pipeline(**kwargs) -> Pipeline:
@@ -14,5 +14,10 @@ def create_pipeline(**kwargs) -> Pipeline:
             func=predict,
             inputs=["features_data", "champion_model"],
             outputs="predictions",
+        ),
+        node(
+            func=save_predictions_to_db,
+            inputs=["predictions", "data_timestamps", "params:data_manager"],
+            outputs=None,
         ),
     ])

@@ -9,7 +9,8 @@ from .nodes import (
     add_rolling_features, 
     get_features_and_target, 
     load_training_data_from_db,
-    load_inference_batch
+    load_inference_batch,
+    get_data_timestamps
     )
 
 def load_training_data(**kwargs) -> Pipeline:
@@ -54,6 +55,11 @@ def create_pipeline() -> Pipeline:
             func=rename_columns,
             inputs=["loaded_df", "params:feature_eng_pipeline.rename_columns"],
             outputs="renamed_data",
+        ),
+        node(
+            func=get_data_timestamps,
+            inputs=["renamed_data"],
+            outputs="data_timestamps",
         ),
         node(
             func=drop_columns,

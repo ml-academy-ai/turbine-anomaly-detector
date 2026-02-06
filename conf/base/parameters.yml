@@ -170,6 +170,6 @@ data_manager:
       type: TEXT
       primary_key: true
       not_null: true
-    - name: predicted_power
+    - name: predict_power
       type: REAL
       not_null: true

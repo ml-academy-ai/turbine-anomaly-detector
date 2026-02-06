@@ -16,18 +16,19 @@ if __name__ == "__main__":
     config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
     data_manager = DataManager(config["data_manager"])
 
-    data_manager.init_raw_db_table()
-    data = data_manager.get_last_n_points(10, table_name="raw_data")
+    # data_manager.init_raw_db_table()
+    # data = data_manager.get_last_n_points(10, table_name="raw_data")
     
-    inference_data = pd.read_parquet(
-        os.path.join(project_root, "data", "01_raw", "df_prod.parquet")
-    )
-    data_manager.insert_data_to_db(inference_data, table_name="raw_data")
+    # inference_data = pd.read_parquet(
+    #     os.path.join(project_root, "data", "01_raw", "df_prod.parquet")
+    # )
+    # data_manager.insert_data_to_db(inference_data, table_name="raw_data")
 
-    data_manager.init_predictions_db_table()
+    # data_manager.init_predictions_db_table()
 
-    data = data_manager.get_data_since_timestamp(
-        start_timestamp="2009-01-01 00:00:00", 
-        table_name="raw_data"
-        )
+    # data = data_manager.get_data_since_timestamp(
+    #     start_timestamp="2009-01-01 00:00:00", 
+    #     table_name="raw_data"
+    #     )
+    data = data_manager.get_last_n_points(10, table_name="predictions")
     print(data)
