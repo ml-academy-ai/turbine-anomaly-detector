@@ -43,4 +43,4 @@ def predict(features_data: pd.DataFrame, champion_model: Any) -> pd.DataFrame:
         Predicted target values for the input features.
     """
     predictions = champion_model.predict(features_data)
-    return pd.DataFrame(predictions, columns=["predictions"])
+    return pd.DataFrame(predictions, columns=["predict_power"])
