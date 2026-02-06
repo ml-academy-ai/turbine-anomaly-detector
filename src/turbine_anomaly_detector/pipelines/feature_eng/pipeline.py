@@ -1,11 +1,58 @@
-from kedro.pipeline import Pipeline, node
-from .nodes import rename_columns, drop_columns, remove_diff_outliers, smooth_signal, add_lag_features, add_rolling_features, get_features_and_target
+from multiprocessing import Pipe
+from kedro.pipeline import Pipeline, node, pipeline
+from .nodes import (
+    rename_columns, 
+    drop_columns, 
+    remove_diff_outliers, 
+    smooth_signal, 
+    add_lag_features, 
+    add_rolling_features, 
+    get_features_and_target, 
+    load_training_data_from_db,
+    load_inference_batch
+    )
+
+def load_training_data(**kwargs) -> Pipeline:
+    return Pipeline(
+        [
+            node(
+                func=load_training_data_from_db,
+                inputs=[
+                    "params:training_pipeline.start_timestamp",
+                    "params:data_manager.raw_data_table_name",
+                    "params:data_manager",
+                ],
+                outputs="loaded_df",
+            ),
+        ]
+    )
+
+def load_inference_data(**kwargs) -> Pipeline:
+    return Pipeline(
+        [
+            node(
+                func=load_inference_batch,
+                inputs=[
+                    "params:inference_pipeline.batch_size", 
+                    "params:data_manager.raw_data_table_name", 
+                    "params:data_manager"],
+                outputs="loaded_df",
+            ),
+        ]
+        )
+    
+
+def feat_eng_pipeline_training() -> Pipeline:
+    return load_training_data() + create_pipeline()
+
+def feat_eng_pipeline_inference() -> Pipeline:
+    return load_inference_data() + create_pipeline()
 
 def create_pipeline() -> Pipeline:
     return Pipeline([
         node(
             func=rename_columns,
-            inputs=["df_train", "params:feature_eng_pipeline.rename_columns"],
+            inputs=["loaded_df", "params:feature_eng_pipeline.rename_columns"],
             outputs="renamed_data",
         ),
         node(

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from typing import Any
+from app_data_manager.data_manager import DataManager
 
 
 def rename_columns(df: pd.DataFrame, columns: dict[str, str]) -> pd.DataFrame:
@@ -188,3 +189,50 @@ def get_features_and_target(
     x = df.drop(columns=target).copy()
     y = pd.DataFrame(df[target].copy(), columns=[target])
     return x, y
+
+
+def load_training_data_from_db(
+    start_timestamp: str,
+    table_name: str,
+    data_manager_config: dict[str, Any],
+) -> pd.DataFrame:
+    """
+    Load training data from SQLite database by timestamp range.
+
+    Args:
+        start_timestamp: Start timestamp (inclusive)
+        end_timestamp: End timestamp (inclusive)
+        table_name: Name of the table to read from
+        data_manager_config: DataManager configuration dictionary
+
+    Returns:
+        DataFrame containing data within the timestamp range
+    """
+    data_manager = DataManager(data_manager_config)
+
+    df = data_manager.get_data_since_timestamp(
+        start_timestamp=start_timestamp,
+        table_name=table_name,
+    )
+    return df
+
+
+def load_inference_batch(
+    batch_size: int,
+    table_name: str,
+    data_manager_config: dict[str, Any],
+) -> pd.DataFrame:
+    """
+    Get the last N data points from SQLite database.
+
+    Args:
+        batch_size: Number of points to retrieve
+        table_name: Name of the table to read from
+        data_manager_config: DataManager configuration dictionary
+
+    Returns:
+        DataFrame containing the last N rows, ordered by Timestamps
+    """
+    data_manager = DataManager(data_manager_config)
+    df = data_manager.get_last_n_points(n=batch_size, table_name=table_name)
+    return df

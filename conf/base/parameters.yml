@@ -79,6 +79,7 @@ feature_eng_pipeline:
 
 
 training_pipeline:
+  start_timestamp: '2007-07-29 03:10:00'
   test_fraction: 0.2 # 20% of the data for testing
   n_folds: 3
 
@@ -111,6 +112,9 @@ training_pipeline:
           range: [20, 30]
           log: False
           type: int
+
+inference_pipeline:
+  batch_size: 100
 
 monitoring_pipeline:
   smoothing_window: 5

@@ -41,7 +41,7 @@ class DataManager:
                 - history_data_folder: Folder containing historical data parquet file
                 - history_data_filename: Name of historical data parquet file
         """
-        self.config = config["data_manager"]
+        self.config = config
         self.db_path = self.config["sqlite_db_path"]
         self.raw_data_table_name = self.config["raw_data_table_name"]
         self.predictions_table_name = self.config["predictions_table_name"]

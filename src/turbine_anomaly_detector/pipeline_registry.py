@@ -1,5 +1,5 @@
 from kedro.pipeline import Pipeline
-from turbine_anomaly_detector.pipelines.feature_eng.pipeline import create_pipeline as create_feature_eng_pipeline
+from turbine_anomaly_detector.pipelines.feature_eng.pipeline import feat_eng_pipeline_training, feat_eng_pipeline_inference
 from turbine_anomaly_detector.pipelines.training.pipeline import create_pipeline as create_training_pipeline
 from turbine_anomaly_detector.pipelines.inference.pipeline import create_pipeline as create_inference_pipeline
 from turbine_anomaly_detector.pipelines.monitoring.pipeline import create_pipeline as create_monitoring_pipeline
@@ -10,14 +10,15 @@ def register_pipelines() -> dict[str, Pipeline]:
     Returns:
         A mapping from pipeline names to ``Pipeline`` objects.
     """
-    feature_eng_pipeline = create_feature_eng_pipeline()
+    feature_eng_pipeline_train = feat_eng_pipeline_training()
+    feature_eng_pipeline_inference = feat_eng_pipeline_inference()
     training_pipeline = create_training_pipeline()
     inference_pipeline = create_inference_pipeline()
     monitoring_pipeline = create_monitoring_pipeline()
 
     return {
-        "__default__": feature_eng_pipeline + training_pipeline,
-        "training": feature_eng_pipeline + training_pipeline,
-        "inference": feature_eng_pipeline + inference_pipeline,
+        "__default__": feature_eng_pipeline_train + training_pipeline,
+        "training": feature_eng_pipeline_train + training_pipeline,
+        "inference": feature_eng_pipeline_inference + inference_pipeline,
         "monitoring": monitoring_pipeline,
     }

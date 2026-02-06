@@ -15,7 +15,7 @@ from typing import Any
 import pandas as pd
 
 # Add project root to Python path for imports
-project_root = Path(__file__).resolve().parents[3]
+project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 
 
@@ -50,7 +50,7 @@ class DataManager:
                 - history_data_folder: Folder containing historical data parquet file
                 - history_data_filename: Name of historical data parquet file
         """
-        self.config = config["data_manager"]
+        self.config = config
         self.db_path = self.config["sqlite_db_path"]
         self.raw_data_table_name = self.config["raw_data_table_name"]
         self.predictions_table_name = self.config["predictions_table_name"]
@@ -192,7 +192,7 @@ def init_raw_db_table(self) -> None:
             df.to_sql(self.raw_data_table_name, conn, if_exists="append", index=False)
 ```
 
-### Add `common/config_utils.py` the config reader
+### Add `app_data_manager/utils.py` the config reader
 ```python
 from pathlib import Path
 
@@ -239,7 +239,7 @@ os.chdir(project_root)
 
 if __name__ == "__main__":
     config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
-    data_manager = DataManager(config)
+    data_manager = DataManager(config["data_manager])
     data_manager.init_raw_db_table()
 ```
 
@@ -278,11 +278,41 @@ def get_last_n_points(self, n: int, table_name: str | None = None) -> pd.DataFra
 ```python
 if __name__ == "__main__":
     config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
-    data_manager = DataManager(config)
+    data_manager = DataManager(config["data_manager])
 
     data_manager.init_raw_db_table()
     data = data_manager.get_last_n_points(10, table_name="raw_data")
     print(data)
+```
+
+### Add `init_prediction_db_table`
+```python
+def init_predictions_db_table(self) -> None:
+        """
+        Create predictions table and timestamp index if they don't exist.
+
+        This method is idempotent - safe to call multiple times. It creates:
+        1. Predictions table with schema from config
+        2. Index on Timestamps column for faster queries
+
+        The index significantly speeds up:
+        - Range queries (get_data_by_timestamp_range)
+        - Ordering queries (get_last_n_points)
+        - JOIN operations
+
+        Unlike init_raw_db_table, this does NOT delete existing data.
+        """
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            schema_sql = self._build_schema_sql(self.predictions_table_schema)
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.predictions_table_name} ({schema_sql})"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
+                f"ON {self.predictions_table_name} (Timestamps)"
+            )
 ```
 
 ### Let's implement `insert_to_db` method
@@ -375,7 +405,7 @@ from pathlib import Path
 
 import pandas as pd
 from data_manager import DataManager  # type: ignore
-from turbine_anomaly_detector.common.config_utils import read_config  # type: ignore
+from utils import read_config  # type: ignore
 
 # Add project root and app_ui directory to path
 project_root = Path(__file__).resolve().parents[3]
@@ -385,7 +415,7 @@ os.chdir(project_root)
 
 if __name__ == "__main__":
     config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
-    data_manager = DataManager(config)
+    data_manager = DataManager(config["data_manager"])
 
     data_manager.init_raw_db_table()
     data = data_manager.get_last_n_points(10, table_name="raw_data")
@@ -394,6 +424,7 @@ if __name__ == "__main__":
         os.path.join(project_root, "data", "01_raw", "df_prod.parquet")
     )
     data_manager.insert_data_to_db(inference_data, table_name="raw_data")
+    data_manager.init_predictions_db_table()
 ```
 
 ### Implement `get_data_since_timestamp` for training
