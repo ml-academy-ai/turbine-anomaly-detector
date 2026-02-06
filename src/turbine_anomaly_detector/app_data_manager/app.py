@@ -23,3 +23,9 @@ if __name__ == "__main__":
         os.path.join(project_root, "data", "01_raw", "df_prod.parquet")
     )
     data_manager.insert_data_to_db(inference_data, table_name="raw_data")
+
+    data = data_manager.get_data_since_timestamp(
+        start_timestamp="2009-01-01 00:00:00", 
+        table_name="raw_data"
+        )
+    print(data)

@@ -1,3 +1,12 @@
+# Data Manager Development
+
+
+### Explain the slides including `Database Initialization` (10 mins)
+
+# Create a directory `src/app_data_manager`, inside `__init__.py`, `app.py`, 'data_manager.py'\
+
+### Create `DataManager` class with ``
+```python
 import sqlite3 as sq
 import sys
 from pathlib import Path
@@ -47,8 +56,86 @@ class DataManager:
         self.predictions_table_name = self.config["predictions_table_name"]
         self.raw_data_table_schema = self.config["raw_data_table_schema"]
         self.predictions_table_schema = self.config["predictions_table_schema"]
+```
 
-    def _build_schema_sql(self, schema: list[dict[str, Any]]) -> str:
+### Add basic configuration to the config
+```yaml
+data_manager:
+  history_data_folder: data/01_raw
+  history_data_filename: df_train_test.parquet
+  inference_data_folder: data/01_raw
+  inference_data_filename: df_prod.parquet
+  sqlite_db_path: data/sqlite/app.db
+  raw_data_table_name: raw_data
+  predictions_table_name: predictions
+```
+
+### Add a method that connects to the database
+```python
+ def _get_connection(self, timeout: int = 30):
+        """
+        Get database connection with Write-Ahead Logging (WAL) mode enabled.
+
+        WAL mode allows multiple readers and one writer simultaneously, improving
+        performance in concurrent scenarios. The timeout prevents indefinite blocking
+        if the database is locked by another process.
+
+        Args:
+            timeout: Seconds to wait before raising timeout error (default: 30).
+
+        Returns:
+            SQLite connection object with WAL mode enabled.
+        """
+        conn = sq.connect(self.db_path, timeout=timeout)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        return conn
+```
+
+### Add Schema of the First Table - Raw Data Table
+```yaml
+  raw_data_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+    - name: WindSpeed
+      type: REAL
+    - name: WindDirAbs
+      type: REAL
+    - name: WindDirRel
+      type: REAL
+    - name: Power
+      type: REAL
+    - name: Pitch
+      type: REAL
+    - name: GenRPM
+      type: REAL
+    - name: RotorRPM
+      type: REAL
+    - name: EnvirTemp
+      type: REAL
+    - name: NacelTemp
+      type: REAL
+    - name: GearOilTemp
+      type: REAL
+    - name: GearBearTemp
+      type: REAL
+    - name: GenPh1Temp
+      type: REAL
+    - name: GenBearTemp
+      type: REAL
+  predictions_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+      not_null: true
+    - name: predicted_power
+      type: REAL
+      not_null: true
+```
+
+### Add a method that builds a schema to the SQL syntax
+```python
+def _build_schema_sql(self, schema: list[dict[str, Any]]) -> str:
         """
         Build SQL column definitions from schema configuration.
 
@@ -71,26 +158,11 @@ class DataManager:
                 col_def += " PRIMARY KEY"
             definitions.append(col_def)
         return ", ".join(definitions)
+```
 
-    def _get_connection(self, timeout: int = 30):
-        """
-        Get database connection with Write-Ahead Logging (WAL) mode enabled.
-
-        WAL mode allows multiple readers and one writer simultaneously, improving
-        performance in concurrent scenarios. The timeout prevents indefinite blocking
-        if the database is locked by another process.
-
-        Args:
-            timeout: Seconds to wait before raising timeout error (default: 30).
-
-        Returns:
-            SQLite connection object with WAL mode enabled.
-        """
-        conn = sq.connect(self.db_path, timeout=timeout)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        return conn
-
-    def init_raw_db_table(self) -> None:
+### Add a method that inits and populates the `raw_data_table`
+```python
+def init_raw_db_table(self) -> None:
         """
         Recreate the raw data table and load historical data from parquet file.
 
@@ -118,35 +190,62 @@ class DataManager:
             schema_sql = self._build_schema_sql(self.raw_data_table_schema)
             conn.execute(f"CREATE TABLE {self.raw_data_table_name} ({schema_sql})")
             df.to_sql(self.raw_data_table_name, conn, if_exists="append", index=False)
+```
 
-    def init_predictions_db_table(self) -> None:
-        """
-        Create predictions table and timestamp index if they don't exist.
+### Add `common/config_utils.py` the config reader
+```python
+from pathlib import Path
 
-        This method is idempotent - safe to call multiple times. It creates:
-        1. Predictions table with schema from config
-        2. Index on Timestamps column for faster queries
+import yaml
 
-        The index significantly speeds up:
-        - Range queries (get_data_by_timestamp_range)
-        - Ordering queries (get_last_n_points)
-        - JOIN operations
 
-        Unlike init_raw_db_table, this does NOT delete existing data.
-        """
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+def read_config(config_path: str | Path) -> dict:
+    """
+    Reads a YAML configuration file and returns it as a dictionary.
 
-        with self._get_connection() as conn:
-            schema_sql = self._build_schema_sql(self.predictions_table_schema)
-            conn.execute(
-                f"CREATE TABLE IF NOT EXISTS {self.predictions_table_name} ({schema_sql})"
-            )
-            conn.execute(
-                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
-                f"ON {self.predictions_table_name} (Timestamps)"
-            )
+    Parameters:
+    ----------
+    config_path : str or Path
+        Path to the YAML file.
 
-    def get_last_n_points(self, n: int, table_name: str) -> pd.DataFrame:
+    Returns:
+    -------
+    dict
+        Parsed YAML content as a dictionary.
+    """
+    path = Path(config_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+
+    with path.open("r") as f:
+        return yaml.safe_load(f)
+```
+
+### Now, it's time to start the application and check how it works in `app.py`
+```python
+import os
+import sys
+from pathlib import Path
+
+import pandas as pd
+from data_manager import DataManager  # type: ignore
+from utils import read_config  # type: ignore
+
+# Add project root and app_ui directory to path
+project_root = Path(__file__).resolve().parents[3]
+sys.path.append(str(project_root))
+os.chdir(project_root)
+
+
+if __name__ == "__main__":
+    config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
+    data_manager = DataManager(config)
+    data_manager.init_raw_db_table()
+```
+
+### To check if we have written anything to the database, let's make `read_last_n_points` method
+```python
+def get_last_n_points(self, n: int, table_name: str | None = None) -> pd.DataFrame:
         """
         Retrieve the last N data points from the specified table.
 
@@ -156,7 +255,8 @@ class DataManager:
         Args:
             n: Number of most recent points to retrieve. Must be positive.
                Returns empty DataFrame if n <= 0.
-            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
+            table_name: Table to query. If None, uses raw_data_table_name.
+                       Can be raw_data_table_name or predictions_table_name.
 
         Returns:
             DataFrame with last N rows, ordered chronologically (oldest first).
@@ -172,64 +272,25 @@ class DataManager:
                 params=[n], # n is the number of points to retrieve
             )
             return df.iloc[::-1].reset_index(drop=True)
+```
 
-    def get_data_by_timestamp_range(
-        self,
-        start_timestamp: str | pd.Timestamp,
-        end_timestamp: str | pd.Timestamp,
-        table_name: str,
-    ) -> pd.DataFrame:
-        """
-        Retrieve data points within a timestamp range (inclusive on both ends).
+### Run the method on the app
+```python
+if __name__ == "__main__":
+    config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
+    data_manager = DataManager(config)
 
-        Args:
-            start_timestamp: Start of range (inclusive). Can be string or pd.Timestamp.
-            end_timestamp: End of range (inclusive). Same format as start_timestamp.
-            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
+    data_manager.init_raw_db_table()
+    data = data_manager.get_last_n_points(10, table_name="raw_data")
+    print(data)
+```
 
-        Returns:
-            DataFrame with rows where Timestamps is between start and end,
-            ordered chronologically (oldest first). Empty DataFrame if no matches.
-        """
-        with self._get_connection() as conn:
-            return pd.read_sql_query(
-                f"SELECT * FROM {table_name} "
-                f"WHERE Timestamps >= ? AND Timestamps <= ? "
-                f"ORDER BY Timestamps ASC",
-                conn,
-                params=[str(start_timestamp), str(end_timestamp)],
-            )
-
-    def get_data_since_timestamp(
-        self,
-        start_timestamp: str | pd.Timestamp,
-        table_name: str,
-    ) -> pd.DataFrame:
-        """
-        Retrieve all data points from a given timestamp until the latest available.
-
-        Args:
-            start_timestamp: Start timestamp (inclusive). Can be string or pd.Timestamp.
-                           All rows with Timestamps >= this value will be returned.
-            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
-
-        Returns:
-            DataFrame with all rows where Timestamps >= start_timestamp,
-            ordered chronologically (oldest first). Empty DataFrame if no matches.
-        """
-        with self._get_connection() as conn:
-            return pd.read_sql_query(
-                f"SELECT * FROM {table_name} "
-                f"WHERE Timestamps >= ? "
-                f"ORDER BY Timestamps ASC",
-                conn,
-                params=[str(start_timestamp)],
-            )
-
-    def insert_data_to_db(
+### Let's implement `insert_to_db` method
+```python
+def insert_data_to_db(
         self,
         new_data: pd.DataFrame,
-        table_name: str,
+        table_name: str | None = None,
     ) -> None:
         """
         Insert or update rows using UPSERT pattern (idempotent writes).
@@ -245,7 +306,7 @@ class DataManager:
 
         Args:
             new_data: DataFrame to insert/update. MUST include 'Timestamps' column.
-            table_name: Target table (e.g., raw_data_table_name or predictions_table_name).
+            table_name: Target table. If None, uses raw_data_table_name.
         """
         # Early return if no data to process
         if new_data is None or new_data.empty:
@@ -304,3 +365,74 @@ class DataManager:
             conn.executemany(sql, df[cols].values.tolist())
             # Explicit commit ensures all changes are persisted to disk
             conn.commit()
+```
+
+### Run the new method in the `app.py`
+```python
+import os
+import sys
+from pathlib import Path
+
+import pandas as pd
+from data_manager import DataManager  # type: ignore
+from turbine_anomaly_detector.common.config_utils import read_config  # type: ignore
+
+# Add project root and app_ui directory to path
+project_root = Path(__file__).resolve().parents[3]
+sys.path.append(str(project_root))
+os.chdir(project_root)
+
+
+if __name__ == "__main__":
+    config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
+    data_manager = DataManager(config)
+
+    data_manager.init_raw_db_table()
+    data = data_manager.get_last_n_points(10, table_name="raw_data")
+    
+    inference_data = pd.read_parquet(
+        os.path.join(project_root, "data", "01_raw", "df_prod.parquet")
+    )
+    data_manager.insert_data_to_db(inference_data, table_name="raw_data")
+```
+
+### Implement `get_data_since_timestamp` for training
+```python
+def get_data_since_timestamp(
+        self,
+        start_timestamp: str | pd.Timestamp,
+        table_name: str,
+    ) -> pd.DataFrame:
+        """
+        Retrieve all data points from a given timestamp until the latest available.
+
+        Args:
+            start_timestamp: Start timestamp (inclusive). Can be string or pd.Timestamp.
+                           All rows with Timestamps >= this value will be returned.
+            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
+
+        Returns:
+            DataFrame with all rows where Timestamps >= start_timestamp,
+            ordered chronologically (oldest first). Empty DataFrame if no matches.
+        """
+        with self._get_connection() as conn:
+            return pd.read_sql_query(
+                f"SELECT * FROM {table_name} "
+                f"WHERE Timestamps >= ? "
+                f"ORDER BY Timestamps ASC",
+                conn,
+                params=[str(start_timestamp)],
+            )
+```
+
+### Check if the data can be read in the `app.py` file
+```python
+data = data_manager.get_data_since_timestamp(
+        start_timestamp="2009-01-01 00:00:00", 
+        table_name="raw_data"
+        )
+    print(data)
+```
+
+# Dataflow
+### Explain the dataflow slides
