@@ -7,12 +7,7 @@
 df_train:
   type: pandas.ParquetDataset
   filepath: data/01_raw/df_train.parquet
-
-
-predictions:
-  type: pandas.ParquetDataset
-  filepath: data/07_model_output/predictions.parquet
-
+  
 target_data:
   type: pandas.ParquetDataset
   filepath: data/05_model_input/target_data.parquet

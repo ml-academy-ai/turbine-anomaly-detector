@@ -32,21 +32,9 @@ class DataManager:
         Initialize DataManager with configuration dictionary.
 
         Args:
-            config: The 'data_manager' section from parameters.yml containing:
-                - sqlite_db_path: Path to SQLite database file
-                - raw_data_table_name: Name of raw data table
-                - predictions_table_name: Name of predictions table
-                - raw_data_table_schema: List of column definitions for raw data
-                - predictions_table_schema: List of column definitions for predictions
-                - history_data_folder: Folder containing historical data parquet file
-                - history_data_filename: Name of historical data parquet file
+            config: The 'data_manager' section from parameters.yml
         """
         self.config = config
-        self.db_path = self.config["sqlite_db_path"]
-        self.raw_data_table_name = self.config["raw_data_table_name"]
-        self.predictions_table_name = self.config["predictions_table_name"]
-        self.raw_data_table_schema = self.config["raw_data_table_schema"]
-        self.predictions_table_schema = self.config["predictions_table_schema"]
 
     def _build_schema_sql(self, schema: list[dict[str, Any]]) -> str:
         """
@@ -86,7 +74,7 @@ class DataManager:
         Returns:
             SQLite connection object with WAL mode enabled.
         """
-        conn = sq.connect(self.db_path, timeout=timeout)
+        conn = sq.connect(self.config["sqlite_db_path"], timeout=timeout)
         conn.execute("PRAGMA journal_mode=WAL;")
         return conn
 
@@ -108,16 +96,16 @@ class DataManager:
             FileNotFoundError: If historical data parquet file doesn't exist.
             sqlite3.Error: If database operations fail.
         """
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.db_path).unlink(missing_ok=True)
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.config["sqlite_db_path"]).unlink(missing_ok=True)
 
         history_path = Path(self.config["history_data_folder"]) / self.config["history_data_filename"]
         df = pd.read_parquet(history_path)
 
         with self._get_connection() as conn:
-            schema_sql = self._build_schema_sql(self.raw_data_table_schema)
-            conn.execute(f"CREATE TABLE {self.raw_data_table_name} ({schema_sql})")
-            df.to_sql(self.raw_data_table_name, conn, if_exists="append", index=False)
+            schema_sql = self._build_schema_sql(self.config["raw_data_table_schema"])
+            conn.execute(f"CREATE TABLE {self.config['raw_data_table_name']} ({schema_sql})")
+            df.to_sql(self.config["raw_data_table_name"], conn, if_exists="append", index=False)
 
     def init_predictions_db_table(self) -> None:
         """
@@ -134,17 +122,73 @@ class DataManager:
 
         Unlike init_raw_db_table, this does NOT delete existing data.
         """
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
 
         with self._get_connection() as conn:
-            schema_sql = self._build_schema_sql(self.predictions_table_schema)
+            schema_sql = self._build_schema_sql(self.config["predictions_table_schema"])
             conn.execute(
-                f"CREATE TABLE IF NOT EXISTS {self.predictions_table_name} ({schema_sql})"
+                f"CREATE TABLE IF NOT EXISTS {self.config['predictions_table_name']} ({schema_sql})"
             )
             conn.execute(
                 f"CREATE INDEX IF NOT EXISTS idx_timestamps "
-                f"ON {self.predictions_table_name} (Timestamps)"
+                f"ON {self.config['predictions_table_name']} (Timestamps)"
             )
+
+    def init_errors_db_table(self) -> None:
+        """
+        Create errors table and timestamp index if they don't exist.
+
+        This method is idempotent - safe to call multiple times. It creates:
+        1. Errors table with schema from config
+        2. Index on Timestamps column for faster queries
+
+        The index significantly speeds up:
+        - Range queries (get_data_by_timestamp_range)
+        - Ordering queries (get_last_n_points)
+        - JOIN operations
+
+        Unlike init_raw_db_table, this does NOT delete existing data.
+        """
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            schema_sql = self._build_schema_sql(self.config["errors_table_schema"])
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.config['errors_table_name']} ({schema_sql})"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
+                f"ON {self.config['errors_table_name']} (Timestamps)"
+            )
+
+    def init_anomalies_db_table(self) -> None:
+        """
+        Create anomalies table and timestamp index if they don't exist.
+
+        This method is idempotent - safe to call multiple times. It creates:
+        1. Anomalies table with schema from config
+        2. Index on Timestamps column for faster queries
+
+        The index significantly speeds up:
+        - Range queries (get_data_by_timestamp_range)
+        - Ordering queries (get_last_n_points)
+        - JOIN operations
+
+        Unlike init_raw_db_table, this does NOT delete existing data.
+        """
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            schema_sql = self._build_schema_sql(self.config["anomalies_table_schema"])
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.config['anomalies_table_name']} ({schema_sql})"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
+                f"ON {self.config['anomalies_table_name']} (Timestamps)"
+            )
+
+    
 
     def get_last_n_points(self, n: int, table_name: str) -> pd.DataFrame:
         """
@@ -172,59 +216,6 @@ class DataManager:
                 params=[n], # n is the number of points to retrieve
             )
             return df.iloc[::-1].reset_index(drop=True)
-
-    def get_data_by_timestamp_range(
-        self,
-        start_timestamp: str | pd.Timestamp,
-        end_timestamp: str | pd.Timestamp,
-        table_name: str,
-    ) -> pd.DataFrame:
-        """
-        Retrieve data points within a timestamp range (inclusive on both ends).
-
-        Args:
-            start_timestamp: Start of range (inclusive). Can be string or pd.Timestamp.
-            end_timestamp: End of range (inclusive). Same format as start_timestamp.
-            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
-
-        Returns:
-            DataFrame with rows where Timestamps is between start and end,
-            ordered chronologically (oldest first). Empty DataFrame if no matches.
-        """
-        with self._get_connection() as conn:
-            return pd.read_sql_query(
-                f"SELECT * FROM {table_name} "
-                f"WHERE Timestamps >= ? AND Timestamps <= ? "
-                f"ORDER BY Timestamps ASC",
-                conn,
-                params=[str(start_timestamp), str(end_timestamp)],
-            )
-
-    def get_data_since_timestamp(
-        self,
-        start_timestamp: str | pd.Timestamp,
-        table_name: str,
-    ) -> pd.DataFrame:
-        """
-        Retrieve all data points from a given timestamp until the latest available.
-
-        Args:
-            start_timestamp: Start timestamp (inclusive). Can be string or pd.Timestamp.
-                           All rows with Timestamps >= this value will be returned.
-            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
-
-        Returns:
-            DataFrame with all rows where Timestamps >= start_timestamp,
-            ordered chronologically (oldest first). Empty DataFrame if no matches.
-        """
-        with self._get_connection() as conn:
-            return pd.read_sql_query(
-                f"SELECT * FROM {table_name} "
-                f"WHERE Timestamps >= ? "
-                f"ORDER BY Timestamps ASC",
-                conn,
-                params=[str(start_timestamp)],
-            )
 
     def insert_data_to_db(
         self,
@@ -304,3 +295,56 @@ class DataManager:
             conn.executemany(sql, df[cols].values.tolist())
             # Explicit commit ensures all changes are persisted to disk
             conn.commit()
+
+    def get_data_since_timestamp(
+        self,
+        start_timestamp: str | pd.Timestamp,
+        table_name: str,
+    ) -> pd.DataFrame:
+        """
+        Retrieve all data points from a given timestamp until the latest available.
+
+        Args:
+            start_timestamp: Start timestamp (inclusive). Can be string or pd.Timestamp.
+                           All rows with Timestamps >= this value will be returned.
+            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
+
+        Returns:
+            DataFrame with all rows where Timestamps >= start_timestamp,
+            ordered chronologically (oldest first). Empty DataFrame if no matches.
+        """
+        with self._get_connection() as conn:
+            return pd.read_sql_query(
+                f"SELECT * FROM {table_name} "
+                f"WHERE Timestamps >= ? "
+                f"ORDER BY Timestamps ASC",
+                conn,
+                params=[str(start_timestamp)],
+            )
+
+    def get_data_by_timestamp_range(
+        self,
+        start_timestamp: str | pd.Timestamp,
+        end_timestamp: str | pd.Timestamp,
+        table_name: str,
+    ) -> pd.DataFrame:
+        """
+        Retrieve data points within a timestamp range (inclusive on both ends).
+
+        Args:
+            start_timestamp: Start of range (inclusive). Can be string or pd.Timestamp.
+            end_timestamp: End of range (inclusive). Same format as start_timestamp.
+            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
+
+        Returns:
+            DataFrame with rows where Timestamps is between start and end,
+            ordered chronologically (oldest first). Empty DataFrame if no matches.
+        """
+        with self._get_connection() as conn:
+            return pd.read_sql_query(
+                f"SELECT * FROM {table_name} "
+                f"WHERE Timestamps >= ? AND Timestamps <= ? "
+                f"ORDER BY Timestamps ASC",
+                conn,
+                params=[str(start_timestamp), str(end_timestamp)],
+            )

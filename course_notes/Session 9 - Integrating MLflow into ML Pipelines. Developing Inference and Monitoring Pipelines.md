@@ -490,19 +490,9 @@ def create_pipeline(**kwargs) -> Pipeline:
     ])
 ```
 
-### Create a Kedro Dataset, so that we can use predictions in the Monitoring Pipeline
-```yaml
-predictions:
-  type: pandas.ParquetDataset
-  filepath: data/07_model_output/predictions.parquet
-```
-
-# Monitoring Pipeline
-### Create directories
-
-### Create node `conpute_anomaly_metrics`
+### Create node `compute_anomaly_metrics`
 ```python
-def compute_anomaly_metrics(y_pred: pd.Series, y_true: pd.Series) -> dict[str, float]:
+def compute_model_errors(y_pred: pd.Series, y_true: pd.Series) -> dict[str, float]:
     """
     Compute MAPE metric from predictions and target data.
 
@@ -521,70 +511,67 @@ def compute_anomaly_metrics(y_pred: pd.Series, y_true: pd.Series) -> dict[str, f
     y_true = y_true.values.ravel()
     y_pred = y_pred.values.ravel()
     mape = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
-    return pd.DataFrame(mape, columns=["metric"])
+    return pd.DataFrame(mape, columns=["error"])
 ```
 
 ### Add node to the pipeline
 ```python
-"""Monitoring pipeline."""
-from kedro.pipeline import Pipeline, node
-from .nodes import compute_anomaly_metrics
-
-
-def create_pipeline(**kwargs) -> Pipeline:
-    """Create the monitoring pipeline."""
-    return Pipeline([
-        node(
-            func=compute_anomaly_metrics,
-            inputs=["predictions", "target_data"],
-            outputs="anomaly_metrics",
-        ),
-    ])
+node(
+    func=compute_model_errors,
+    inputs=["predictions", "target_data"],
+    outputs="model_errors",
+),
 ```
+
 ### Add metric smoothing Node
 ```python
-def smooth_metric(metric: pd.DataFrame, window: int) -> pd.DataFrame:
+def smooth_error(metric: pd.DataFrame, window: int) -> pd.DataFrame:
     """
     Smooth a metric using a rolling window.
     """
-    return metric['metric'].rolling(window=window).median()
+    return metric['error'].rolling(window=window).median().bfill()
 ```
 ### Add parameters to the config file
 ```yaml
-monitoring_pipeline:
+inference_pipeline:
+  batch_size: 100
   smoothing_window: 5
 ```
+
 ### Add Node to the pipeline
 ```python
 node(
-    func=smooth_metric,
-    inputs=["anomaly_metrics", "params:monitoring_pipeline.smoothing_window"],
-    outputs="smoothed_anomaly_metrics",
+    func=smooth_error,
+    inputs=["model_errors", "params:inference_pipeline.smoothing_window"],
+    outputs="smoothed_errors",
 ),
 ```
-### Add to Pipeline Registry
+
+### Add detection node to the Pipeline
 ```python
-from kedro.pipeline import Pipeline
-from turbine_anomaly_detector.pipelines.feature_eng.pipeline import create_pipeline as create_feature_eng_pipeline
-from turbine_anomaly_detector.pipelines.training.pipeline import create_pipeline as create_training_pipeline
-from turbine_anomaly_detector.pipelines.inference.pipeline import create_pipeline as create_inference_pipeline
-from turbine_anomaly_detector.pipelines.monitoring.pipeline import create_pipeline as create_monitoring_pipeline
-
-def register_pipelines() -> dict[str, Pipeline]:
-    """Register the project's pipelines.
-
-    Returns:
-        A mapping from pipeline names to ``Pipeline`` objects.
+def detect_anomaly(smoothed_metric: pd.DataFrame, threshold: float) -> pd.DataFrame:
     """
-    feature_eng_pipeline = create_feature_eng_pipeline()
-    training_pipeline = create_training_pipeline()
-    inference_pipeline = create_inference_pipeline()
-    monitoring_pipeline = create_monitoring_pipeline()
+    Detect anomalies using a threshold.
+    """
+    df_anomaly = pd.DataFrame({
+        "Anomaly": (smoothed_metric > threshold).astype(int)
+    })
+    return df_anomaly
+```
 
-    return {
-        "__default__": feature_eng_pipeline + training_pipeline,
-        "training": feature_eng_pipeline + training_pipeline,
-        "inference": feature_eng_pipeline + inference_pipeline,
-        "monitoring": monitoring_pipeline,
-    }
+### Add threshold to the config
+```yaml
+inference_pipeline:
+  batch_size: 100
+  smoothing_window: 5
+  anomaly_threshold: 9.5 # in percentage
+```
+
+### Add Node to the Pipeline
+```python
+node(
+    func=detect_anomaly,
+    inputs=["smoothed_errors", "params:inference_pipeline.anomaly_threshold"],
+    outputs="anomalies",
+),
 ```

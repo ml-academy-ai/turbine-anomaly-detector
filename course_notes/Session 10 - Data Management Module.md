@@ -15,7 +15,7 @@ from typing import Any
 import pandas as pd
 
 # Add project root to Python path for imports
-project_root = Path(__file__).resolve().parents[2]
+project_root = Path(__file__).resolve().parents[3]
 sys.path.append(str(project_root))
 
 
@@ -41,21 +41,9 @@ class DataManager:
         Initialize DataManager with configuration dictionary.
 
         Args:
-            config: The 'data_manager' section from parameters.yml containing:
-                - sqlite_db_path: Path to SQLite database file
-                - raw_data_table_name: Name of raw data table
-                - predictions_table_name: Name of predictions table
-                - raw_data_table_schema: List of column definitions for raw data
-                - predictions_table_schema: List of column definitions for predictions
-                - history_data_folder: Folder containing historical data parquet file
-                - history_data_filename: Name of historical data parquet file
+            config: The 'data_manager' section from parameters.yml
         """
         self.config = config
-        self.db_path = self.config["sqlite_db_path"]
-        self.raw_data_table_name = self.config["raw_data_table_name"]
-        self.predictions_table_name = self.config["predictions_table_name"]
-        self.raw_data_table_schema = self.config["raw_data_table_schema"]
-        self.predictions_table_schema = self.config["predictions_table_schema"]
 ```
 
 ### Add basic configuration to the config
@@ -68,11 +56,13 @@ data_manager:
   sqlite_db_path: data/sqlite/app.db
   raw_data_table_name: raw_data
   predictions_table_name: predictions
+  errors_table_name: errors
+  anomalies_table_name: anomalies
 ```
 
 ### Add a method that connects to the database
 ```python
- def _get_connection(self, timeout: int = 30):
+def _get_connection(self, timeout: int = 30):
         """
         Get database connection with Write-Ahead Logging (WAL) mode enabled.
 
@@ -86,14 +76,14 @@ data_manager:
         Returns:
             SQLite connection object with WAL mode enabled.
         """
-        conn = sq.connect(self.db_path, timeout=timeout)
+        conn = sq.connect(self.config["sqlite_db_path"], timeout=timeout)
         conn.execute("PRAGMA journal_mode=WAL;")
         return conn
 ```
 
-### Add Schema of the First Table - Raw Data Table
+### Add Schema of the Tables
 ```yaml
-  raw_data_table_schema:
+raw_data_table_schema:
     - name: Timestamps
       type: TEXT
       primary_key: true
@@ -131,11 +121,27 @@ data_manager:
     - name: predict_power
       type: REAL
       not_null: true
+  errors_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+      not_null: true
+    - name: mape
+      type: REAL
+      not_null: true
+  anomalies_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+      not_null: true
+    - name: anomaly
+      type: REAL
+      not_null: true
 ```
 
 ### Add a method that builds a schema to the SQL syntax
 ```python
-def _build_schema_sql(self, schema: list[dict[str, Any]]) -> str:
+ def _build_schema_sql(self, schema: list[dict[str, Any]]) -> str:
         """
         Build SQL column definitions from schema configuration.
 
@@ -180,16 +186,16 @@ def init_raw_db_table(self) -> None:
             FileNotFoundError: If historical data parquet file doesn't exist.
             sqlite3.Error: If database operations fail.
         """
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.db_path).unlink(missing_ok=True)
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.config["sqlite_db_path"]).unlink(missing_ok=True)
 
         history_path = Path(self.config["history_data_folder"]) / self.config["history_data_filename"]
         df = pd.read_parquet(history_path)
 
         with self._get_connection() as conn:
-            schema_sql = self._build_schema_sql(self.raw_data_table_schema)
-            conn.execute(f"CREATE TABLE {self.raw_data_table_name} ({schema_sql})")
-            df.to_sql(self.raw_data_table_name, conn, if_exists="append", index=False)
+            schema_sql = self._build_schema_sql(self.config["raw_data_table_schema"])
+            conn.execute(f"CREATE TABLE {self.config['raw_data_table_name']} ({schema_sql})")
+            df.to_sql(self.config["raw_data_table_name"], conn, if_exists="append", index=False)
 ```
 
 ### Add `app_data_manager/utils.py` the config reader
@@ -239,13 +245,13 @@ os.chdir(project_root)
 
 if __name__ == "__main__":
     config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
-    data_manager = DataManager(config["data_manager])
+    data_manager = DataManager(config["data_manager"])
     data_manager.init_raw_db_table()
 ```
 
 ### To check if we have written anything to the database, let's make `read_last_n_points` method
 ```python
-def get_last_n_points(self, n: int, table_name: str | None = None) -> pd.DataFrame:
+def get_last_n_points(self, n: int, table_name: str) -> pd.DataFrame:
         """
         Retrieve the last N data points from the specified table.
 
@@ -255,8 +261,7 @@ def get_last_n_points(self, n: int, table_name: str | None = None) -> pd.DataFra
         Args:
             n: Number of most recent points to retrieve. Must be positive.
                Returns empty DataFrame if n <= 0.
-            table_name: Table to query. If None, uses raw_data_table_name.
-                       Can be raw_data_table_name or predictions_table_name.
+            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
 
         Returns:
             DataFrame with last N rows, ordered chronologically (oldest first).
@@ -278,7 +283,7 @@ def get_last_n_points(self, n: int, table_name: str | None = None) -> pd.DataFra
 ```python
 if __name__ == "__main__":
     config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
-    data_manager = DataManager(config["data_manager])
+    data_manager = DataManager(config["data_manager"])
 
     data_manager.init_raw_db_table()
     data = data_manager.get_last_n_points(10, table_name="raw_data")
@@ -302,16 +307,75 @@ def init_predictions_db_table(self) -> None:
 
         Unlike init_raw_db_table, this does NOT delete existing data.
         """
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
 
         with self._get_connection() as conn:
-            schema_sql = self._build_schema_sql(self.predictions_table_schema)
+            schema_sql = self._build_schema_sql(self.config["predictions_table_schema"])
             conn.execute(
-                f"CREATE TABLE IF NOT EXISTS {self.predictions_table_name} ({schema_sql})"
+                f"CREATE TABLE IF NOT EXISTS {self.config['predictions_table_name']} ({schema_sql})"
             )
             conn.execute(
                 f"CREATE INDEX IF NOT EXISTS idx_timestamps "
-                f"ON {self.predictions_table_name} (Timestamps)"
+                f"ON {self.config['predictions_table_name']} (Timestamps)"
+```
+
+### In the same manner, we can create `error_table`
+```python
+def init_errors_db_table(self) -> None:
+        """
+        Create errors table and timestamp index if they don't exist.
+
+        This method is idempotent - safe to call multiple times. It creates:
+        1. Errors table with schema from config
+        2. Index on Timestamps column for faster queries
+
+        The index significantly speeds up:
+        - Range queries (get_data_by_timestamp_range)
+        - Ordering queries (get_last_n_points)
+        - JOIN operations
+
+        Unlike init_raw_db_table, this does NOT delete existing data.
+        """
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            schema_sql = self._build_schema_sql(self.config["errors_table_schema"])
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.config['errors_table_name']} ({schema_sql})"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
+                f"ON {self.config['errors_table_name']} (Timestamps)"
+            )
+```
+
+### In the same manner, we create anomaly table
+```python
+def init_anomalies_db_table(self) -> None:
+        """
+        Create anomalies table and timestamp index if they don't exist.
+
+        This method is idempotent - safe to call multiple times. It creates:
+        1. Anomalies table with schema from config
+        2. Index on Timestamps column for faster queries
+
+        The index significantly speeds up:
+        - Range queries (get_data_by_timestamp_range)
+        - Ordering queries (get_last_n_points)
+        - JOIN operations
+
+        Unlike init_raw_db_table, this does NOT delete existing data.
+        """
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            schema_sql = self._build_schema_sql(self.config["anomalies_table_schema"])
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.config['anomalies_table_name']} ({schema_sql})"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
+                f"ON {self.config['anomalies_table_name']} (Timestamps)"
             )
 ```
 
@@ -320,7 +384,7 @@ def init_predictions_db_table(self) -> None:
 def insert_data_to_db(
         self,
         new_data: pd.DataFrame,
-        table_name: str | None = None,
+        table_name: str,
     ) -> None:
         """
         Insert or update rows using UPSERT pattern (idempotent writes).
@@ -336,7 +400,7 @@ def insert_data_to_db(
 
         Args:
             new_data: DataFrame to insert/update. MUST include 'Timestamps' column.
-            table_name: Target table. If None, uses raw_data_table_name.
+            table_name: Target table (e.g., raw_data_table_name or predictions_table_name).
         """
         # Early return if no data to process
         if new_data is None or new_data.empty:
@@ -408,7 +472,7 @@ from data_manager import DataManager  # type: ignore
 from utils import read_config  # type: ignore
 
 # Add project root and app_ui directory to path
-project_root = Path(__file__).resolve().parents[3]
+project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
 os.chdir(project_root)
 
@@ -463,6 +527,36 @@ data = data_manager.get_data_since_timestamp(
         table_name="raw_data"
         )
     print(data)
+```
+
+### Finally, for later analysis, let's implement another convenient method
+```python
+def get_data_by_timestamp_range(
+        self,
+        start_timestamp: str | pd.Timestamp,
+        end_timestamp: str | pd.Timestamp,
+        table_name: str,
+    ) -> pd.DataFrame:
+        """
+        Retrieve data points within a timestamp range (inclusive on both ends).
+
+        Args:
+            start_timestamp: Start of range (inclusive). Can be string or pd.Timestamp.
+            end_timestamp: End of range (inclusive). Same format as start_timestamp.
+            table_name: Table to query (e.g., raw_data_table_name or predictions_table_name).
+
+        Returns:
+            DataFrame with rows where Timestamps is between start and end,
+            ordered chronologically (oldest first). Empty DataFrame if no matches.
+        """
+        with self._get_connection() as conn:
+            return pd.read_sql_query(
+                f"SELECT * FROM {table_name} "
+                f"WHERE Timestamps >= ? AND Timestamps <= ? "
+                f"ORDER BY Timestamps ASC",
+                conn,
+                params=[str(start_timestamp), str(end_timestamp)],
+            )
 ```
 
 # Dataflow

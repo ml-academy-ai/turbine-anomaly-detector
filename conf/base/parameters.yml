@@ -115,9 +115,11 @@ training_pipeline:
 
 inference_pipeline:
   batch_size: 100
-
-monitoring_pipeline:
   smoothing_window: 5
+  anomaly_threshold: 9.5 # in percentage
+  predictions_column_name: predict_power
+  anomalies_column_name: anomaly
+  errors_column_name: mape
 
 mlflow:
   prod_experiment_name: prod_model_training
@@ -125,7 +127,6 @@ mlflow:
   model_aliases:
     candidate: challenger
     production: champion
-
 
 data_manager:
   history_data_folder: data/01_raw
@@ -135,6 +136,8 @@ data_manager:
   sqlite_db_path: data/sqlite/app.db
   raw_data_table_name: raw_data
   predictions_table_name: predictions
+  errors_table_name: errors
+  anomalies_table_name: anomalies
   raw_data_table_schema:
     - name: Timestamps
       type: TEXT
@@ -171,5 +174,21 @@ data_manager:
       primary_key: true
       not_null: true
     - name: predict_power
+      type: REAL
+      not_null: true
+  errors_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+      not_null: true
+    - name: mape
+      type: REAL
+      not_null: true
+  anomalies_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+      not_null: true
+    - name: anomaly
       type: REAL
       not_null: true
