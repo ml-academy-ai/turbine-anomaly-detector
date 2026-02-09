@@ -290,6 +290,8 @@ if __name__ == "__main__":
     print(data)
 ```
 
+### Show the slide about all the data tables we will have
+
 ### Add `init_prediction_db_table`
 ```python
 def init_predictions_db_table(self) -> None:
@@ -349,7 +351,7 @@ def init_errors_db_table(self) -> None:
             )
 ```
 
-### In the same manner, we create anomaly table
+### In the same manner, we create `anomaly table`
 ```python
 def init_anomalies_db_table(self) -> None:
         """
@@ -560,4 +562,4 @@ def get_data_by_timestamp_range(
 ```
 
 # Dataflow
-### Explain the dataflow slides
+### Explain the dataflow slides including `Re-training`
