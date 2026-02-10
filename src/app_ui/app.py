@@ -34,12 +34,10 @@ content = html.Div(id="page-content", children=[dash.page_container])
 app.layout = html.Div(
     id="main-layout",
     children=[
-        dcc.Location(id="url"),
         sidebar,
         content,
     ],
 )
-
 
 # Callback to toggle sidebar collapse
 @app.callback(
@@ -71,3 +69,30 @@ server = app.server
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False, host="0.0.0.0", port=8050)
+
+
+
+from app_ui.components.sidebar import sidebar
+# App definition
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.BOOTSTRAP, "https://use.fontawesome.com/releases/v5.15.1/css/all.css"],
+    suppress_callback_exceptions=True,
+    use_pages=True,
+    pages_folder="pages",
+    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+)
+# App layout with sidebar
+content = html.Div(id="page-content", children=[dash.page_container])
+app.layout = html.Div(
+    id="main-layout",
+    children=[
+        sidebar,
+        content,
+    ],
+)
+
+server = app.server
+
+if __name__ == "__main__":
+    app.run(port=8050)

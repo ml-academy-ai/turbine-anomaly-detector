@@ -7,6 +7,10 @@ from dash import no_update
 
 from app_data_manager.data_manager import DataManager
 from app_data_manager.utils import read_config
+import mlflow
+from mlflow.tracking import MlflowClient
+from datetime import datetime
+import os
 
 # Configuration (same as home page: parameters.yml)
 project_root = Path(__file__).resolve().parents[2]
@@ -206,3 +210,67 @@ def sync_xaxis(relayout_data, current_figure):
         return updated_figure, x_range
 
     return no_update, no_update
+
+
+def get_model_info_by_alias(
+    alias: str,
+    mlflow_tracking_uri: str | None = None,
+    model_name: str | None = None,
+) -> dict | None:
+    """Return basic info + test MAE/MAPE for a model version resolved by alias."""
+    # 1) Resolve tracking URI (if not provided, uses the local mlflow server)
+    if mlflow_tracking_uri is None:
+        mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:8080")
+
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    client = MlflowClient()
+
+    # 3) Look up model version by alias
+    try:
+        model_version = client.get_model_version_by_alias(name=model_name, alias=alias)
+    except Exception:
+        return None
+
+    # Require timestamp and run_id; otherwise we can't show useful info
+    if model_version.last_updated_timestamp is None or model_version.run_id is None:
+        return None
+
+    last_updated = datetime.fromtimestamp(model_version.last_updated_timestamp / 1000.0)
+
+    # 4) Fetch run to read metrics
+    try:
+        run = client.get_run(model_version.run_id)
+    except Exception:
+        return None
+
+    metrics = run.data.metrics
+
+    # Helper: given a list of possible metric names, return the first one that
+    # exists in `metrics` (or None if none of them are logged in this run).
+    def _first_metric(keys: list[str]) -> float | None:
+        return next((metrics[k] for k in keys if k in metrics), None)
+
+    test_mae = _first_metric([
+        "test_mae",
+        "test_MAE",
+        "test_mae_err",
+        "test_MAE_err",
+        "mae_test",
+        "MAE_test",
+    ])
+    test_mape = _first_metric([
+        "test_mape",
+        "test_MAPE",
+        "test_mape_err",
+        "test_MAPE_err",
+        "mape_test",
+        "MAPE_test",
+    ])
+
+    return {
+        "model_name": model_name,
+        "version": model_version.version,
+        "last_updated": last_updated,
+        "test_mae": test_mae,
+        "test_mape": test_mape,
+    }
