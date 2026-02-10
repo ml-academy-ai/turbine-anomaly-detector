@@ -14,7 +14,7 @@ parameters_path = project_root / "conf" / "base" / "parameters.yml"
 config = read_config(parameters_path)
 
 
-def load_prod_data(n_data_points: int = 100000) -> pd.DataFrame:
+def load_prod_data(n_data_points: int = 100000, anomaly_error_type: str = "mape") -> pd.DataFrame:
     """
     Load last N rows from predictions, errors, anomalies, raw_data; merge on Timestamps.
     Returns only DB columns: Timestamps, predict_power, mape, anomaly, Power (if present).
@@ -26,7 +26,11 @@ def load_prod_data(n_data_points: int = 100000) -> pd.DataFrame:
     raw_data = data_manager.get_last_n_points(n_data_points, table_name="raw_data")
     df = predictions.copy()
     df = df.merge(
-        errors[["Timestamps", "mape"]].drop_duplicates(subset=["Timestamps"]),
+        errors[[
+            "Timestamps", 
+            anomaly_error_type, 
+            f"rolling_{anomaly_error_type}"
+            ]].drop_duplicates(subset=["Timestamps"]),
         on="Timestamps",
         how="left",
     )
@@ -48,20 +52,32 @@ def load_prod_data(n_data_points: int = 100000) -> pd.DataFrame:
 
 
 def create_error_plot(
-    df: pd.DataFrame, metric_threshold: float
+    df: pd.DataFrame,
+    metric_threshold: float,
+    anomaly_error_type: str = "mape",
+    rolling_window: int = 5,
 ) -> go.Figure:
-    """Plot DB columns only: mape, threshold line, anomaly markers. No computed columns."""
+    """Plot error column, rolling error, threshold line, and anomaly markers."""
 
     x_min, x_max = df["Timestamps"].min(), df["Timestamps"].max()
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
             x=df["Timestamps"],
-            y=df["mape"],
-            name="MAPE",
+            y=df[anomaly_error_type],
+            name=anomaly_error_type.upper(),
             mode="lines",
             line=dict(color="#60a5fa", width=1.5),
             opacity=0.6,
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df["Timestamps"],
+            y=df[f"rolling_{anomaly_error_type}"],
+            name=f"{anomaly_error_type.upper()} Rolling ({rolling_window} pts)",
+            mode="lines",
+            line=dict(color="#2563eb", width=2),
         )
     )
     fig.add_trace(
@@ -73,10 +89,13 @@ def create_error_plot(
             line=dict(color="#111827", width=2.5, dash="dash"),
         )
     )
+    anomaly_mask = df["anomaly"] == 1
+    df_anom = df.loc[anomaly_mask]
+    y_anom = df_anom[f"rolling_{anomaly_error_type}"]
     fig.add_trace(
         go.Scatter(
-            x=df["Timestamps"],
-            y=df["anomaly"],
+            x=df_anom["Timestamps"],
+            y=y_anom,
             name="Anomaly",
             mode="markers",
             marker=dict(
@@ -86,7 +105,7 @@ def create_error_plot(
                 line=dict(width=2, color="#dc2626"),
             ),
         )
-        )
+    )
     fig.update_layout(
         template="plotly_white",
         margin=dict(l=40, r=40, t=30, b=40),
