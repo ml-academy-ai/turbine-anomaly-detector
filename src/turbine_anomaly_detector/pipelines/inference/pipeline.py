@@ -1,5 +1,5 @@
 from kedro.pipeline import Pipeline, node
-from .nodes import load_champion_model, predict, save_predictions_to_db, compute_model_errors, smooth_error, detect_anomaly
+from .nodes import load_champion_model, predict, save_predictions_to_db, compute_model_errors, compute_rolling_error, detect_anomaly
 
 
 def create_pipeline(**kwargs) -> Pipeline:
@@ -17,17 +17,25 @@ def create_pipeline(**kwargs) -> Pipeline:
         ),
         node(
             func=compute_model_errors,
-            inputs=["predictions", "target_data"],
+            inputs=[
+                "predictions", 
+                "target_data", 
+                "params:inference_pipeline.anomaly_error_type"
+                ],
             outputs="model_errors",
         ),
         node(
-            func=smooth_error,
-            inputs=["model_errors", "params:inference_pipeline.smoothing_window"],
-            outputs="smoothed_errors",
+            func=compute_rolling_error,
+            inputs=["model_errors", "params:inference_pipeline.rolling_window"],
+            outputs="rolling_errors",
         ),
         node(
             func=detect_anomaly,
-            inputs=["smoothed_errors", "params:inference_pipeline.anomaly_threshold"],
+            inputs=[
+                "rolling_errors", 
+                "params:inference_pipeline.anomaly_threshold", 
+                "params:inference_pipeline.anomaly_error_type"
+                ],
             outputs="anomalies",
         ),
         node(
@@ -44,8 +52,8 @@ def create_pipeline(**kwargs) -> Pipeline:
         node(
             func=save_predictions_to_db,
             inputs=[
-                "model_errors", 
-                "params:inference_pipeline.errors_column_name",
+                "rolling_errors", 
+                "params:inference_pipeline.errors_column_names",
                 "params:data_manager.errors_table_name",
                 "data_timestamps",
                 "params:data_manager"

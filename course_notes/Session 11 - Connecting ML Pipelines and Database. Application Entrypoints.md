@@ -168,8 +168,8 @@ def register_pipelines() -> dict[str, Pipeline]:
 ```python
 from app_data_manager.data_manager import DataManager
 def save_predictions_to_db(
-    y_pred: pd.Series,
-    predictions_column_name: str,
+    predictions: pd.DataFrame,
+    predictions_column_names: list[str],
     db_table_name: str,
     data_timestamps: pd.Timestamp,
     data_manager_config: dict[str, Any],
@@ -178,11 +178,11 @@ def save_predictions_to_db(
     Save predictions to the SQLite database using DataManager.
 
     Args:
-        y_pred: Predicted values as a Series
-        column_name: Name of the column to save the predictions to
+        predictions : pd.DataFrame containing predictions and timestamps
+        predictions_column_names: List of column names to save the predictions to
         db_table_name: Name of the table to save the predictions to
         data_timestamps: Data timestamps
-        data_manager_config: DataManager configuration dictionary
+        data_manager_config: DataManager configuration dictionary to save the predictions to
     """
     # Initialize DataManager
     data_manager = DataManager(data_manager_config)
@@ -192,12 +192,13 @@ def save_predictions_to_db(
     # Normalize timestamps to string format expected by the database
     # This works for both Series-like inputs and single Timestamp values
     timestamps_str = timestamps.dt.strftime("%Y-%m-%d %H:%M:%S")
+    predictions['Timestamps'] = timestamps_str
 
     # Create predictions DataFrame
     predictions_df = pd.DataFrame(
         {
             "Timestamps": timestamps_str,
-            predictions_column_name: y_pred.values.ravel(),
+            **{col: predictions[col].values.ravel() for col in predictions_column_names},
         }
     )
     # Save to predictions table
@@ -238,11 +239,12 @@ node(
 ```yaml
 inference_pipeline:
   batch_size: 100
-  smoothing_window: 5
+  rolling_window: 5
+  anomaly_error_type: mape
   anomaly_threshold: 9.5 # in percentage
-  predictions_column_name: predict_power
-  anomalies_column_name: anomaly
-  errors_column_name: mape
+  predictions_column_name: [predict_power]
+  anomalies_column_name: [anomaly]
+  errors_column_names: [mape, rolling_mape]
 ```
 
 ### Show the slides how we will save `predictions`, `errors` and `anomalies` to different database tables
@@ -306,8 +308,8 @@ if __name__ == "__main__":
 node(
     func=save_predictions_to_db,
     inputs=[
-        "model_errors", 
-        "params:inference_pipeline.errors_column_name",
+        "rolling_errors", 
+        "params:inference_pipeline.errors_column_names",
         "params:data_manager.errors_table_name",
         "data_timestamps",
         "params:data_manager"
@@ -389,8 +391,30 @@ data_manager.init_anomalies_db_table()
 ### Run inference again
 ### Run reading anomalies
 ```python
-data = data_manager.get_last_n_points(10, table_name="anomalies")
-print(data)
+if __name__ == "__main__":
+    config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"))
+    data_manager = DataManager(config["data_manager"])
+
+    # data_manager.init_raw_db_table()
+    # data = data_manager.get_last_n_points(10, table_name="raw_data")
+    # # print(data)
+    
+    # inference_data = pd.read_parquet(
+    #     os.path.join(project_root, "data", "01_raw", "df_prod.parquet")
+    # )
+    # data_manager.insert_data_to_db(inference_data, table_name="raw_data")
+    # data_manager.init_predictions_db_table()
+    # data = data_manager.get_data_since_timestamp(
+    #     start_timestamp="2009-01-01 00:00:00", 
+    #     table_name="raw_data"
+    #     )
+    # data = data_manager.get_last_n_points(10, table_name="predictions")
+    # print(data)
+    # data_manager.init_errors_db_table()
+    # data = data_manager.get_last_n_points(10, table_name="errors")
+    # print(data)
+    data = data_manager.get_last_n_points(10, table_name="anomalies")
+    print(data)
 ```
 
 # Application Entrypoints

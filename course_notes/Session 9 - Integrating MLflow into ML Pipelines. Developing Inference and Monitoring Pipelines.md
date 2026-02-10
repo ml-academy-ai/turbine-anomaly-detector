@@ -492,7 +492,7 @@ def create_pipeline(**kwargs) -> Pipeline:
 
 ### Create node `compute_anomaly_metrics`
 ```python
-def compute_model_errors(y_pred: pd.Series, y_true: pd.Series) -> dict[str, float]:
+def compute_model_errors(y_pred: pd.Series, y_true: pd.Series, anomaly_error_type: str) -> pd.DataFrame:
     """
     Compute MAPE metric from predictions and target data.
 
@@ -510,51 +510,67 @@ def compute_model_errors(y_pred: pd.Series, y_true: pd.Series) -> dict[str, floa
     """
     y_true = y_true.values.ravel()
     y_pred = y_pred.values.ravel()
-    mape = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
-    return pd.DataFrame(mape, columns=["error"])
+    if anomaly_error_type == "mape":
+        error = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
+        error_column_name = "mape"
+    return pd.DataFrame(error, columns=[error_column_name])
 ```
 
 ### Add node to the pipeline
 ```python
 node(
-    func=compute_model_errors,
-    inputs=["predictions", "target_data"],
-    outputs="model_errors",
-),
+        func=compute_model_errors,
+        inputs=[
+            "predictions", 
+            "target_data", 
+            "params:inference_pipeline.anomaly_error_type"
+            ],
+        outputs="model_errors",
+    ),
+```
+
+### Add `anomaly_error_type` to the config file:
+```yaml
+inference_pipeline:
+  batch_size: 100
+  anomaly_error_type: mape
 ```
 
 ### Add metric smoothing Node
 ```python
-def smooth_error(metric: pd.DataFrame, window: int) -> pd.DataFrame:
+def rolling_error(df_error: pd.DataFrame, rolling_window: int) -> pd.DataFrame:
     """
     Smooth a metric using a rolling window.
     """
-    return metric['error'].rolling(window=window).median().bfill()
+    error_name = df_error.columns[0]
+    df_error[f"rolling_{error_name}"] = df_error[error_name].rolling(window=rolling_window).median().bfill()
+    return df_error
 ```
 ### Add parameters to the config file
 ```yaml
 inference_pipeline:
   batch_size: 100
-  smoothing_window: 5
+  rolling_window: 5
+  anomaly_error_type: mape
 ```
 
 ### Add Node to the pipeline
 ```python
 node(
-    func=smooth_error,
-    inputs=["model_errors", "params:inference_pipeline.smoothing_window"],
-    outputs="smoothed_errors",
+    func=compute_rolling_error,
+    inputs=["model_errors", "params:inference_pipeline.rolling_window"],
+    outputs="rolling_errors",
 ),
 ```
 
 ### Add detection node to the Pipeline
 ```python
-def detect_anomaly(smoothed_metric: pd.DataFrame, threshold: float) -> pd.DataFrame:
+def detect_anomaly(df_error: pd.DataFrame, threshold: float, anomaly_error_type: str) -> pd.DataFrame:
     """
     Detect anomalies using a threshold.
     """
     df_anomaly = pd.DataFrame({
-        "Anomaly": (smoothed_metric > threshold).astype(int)
+        "anomaly": (df_error[f"rolling_{anomaly_error_type}"] > threshold).astype(int)
     })
     return df_anomaly
 ```
@@ -563,7 +579,8 @@ def detect_anomaly(smoothed_metric: pd.DataFrame, threshold: float) -> pd.DataFr
 ```yaml
 inference_pipeline:
   batch_size: 100
-  smoothing_window: 5
+  rolling_window: 5
+  anomaly_error_type: mape
   anomaly_threshold: 9.5 # in percentage
 ```
 
@@ -571,7 +588,11 @@ inference_pipeline:
 ```python
 node(
     func=detect_anomaly,
-    inputs=["smoothed_errors", "params:inference_pipeline.anomaly_threshold"],
+    inputs=[
+        "rolling_errors", 
+        "params:inference_pipeline.anomaly_threshold", 
+        "params:inference_pipeline.anomaly_error_type"
+        ],
     outputs="anomalies",
 ),
 ```

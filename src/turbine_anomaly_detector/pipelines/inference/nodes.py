@@ -46,7 +46,7 @@ def predict(features_data: pd.DataFrame, champion_model: Any) -> pd.DataFrame:
     predictions = champion_model.predict(features_data)
     return pd.DataFrame(predictions, columns=["predict_power"])
 
-def compute_model_errors(y_pred: pd.Series, y_true: pd.Series) -> dict[str, float]:
+def compute_model_errors(y_pred: pd.Series, y_true: pd.Series, anomaly_error_type: str) -> pd.DataFrame:
     """
     Compute MAPE metric from predictions and target data.
 
@@ -64,27 +64,31 @@ def compute_model_errors(y_pred: pd.Series, y_true: pd.Series) -> dict[str, floa
     """
     y_true = y_true.values.ravel()
     y_pred = y_pred.values.ravel()
-    mape = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
-    return pd.DataFrame(mape, columns=["error"])
+    if anomaly_error_type == "mape":
+        error = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
+        error_column_name = "mape"
+    return pd.DataFrame(error, columns=[error_column_name])
 
-def smooth_error(metric: pd.DataFrame, window: int) -> pd.DataFrame:
+def compute_rolling_error(df_error: pd.DataFrame, rolling_window: int) -> pd.DataFrame:
     """
     Smooth a metric using a rolling window.
     """
-    return metric['error'].rolling(window=window).median().bfill()
+    error_name = df_error.columns[0]
+    df_error[f"rolling_{error_name}"] = df_error[error_name].rolling(window=rolling_window).median().bfill()
+    return df_error
 
-def detect_anomaly(smoothed_metric: pd.DataFrame, threshold: float) -> pd.DataFrame:
+def detect_anomaly(df_error: pd.DataFrame, threshold: float, anomaly_error_type: str) -> pd.DataFrame:
     """
     Detect anomalies using a threshold.
     """
     df_anomaly = pd.DataFrame({
-        "Anomaly": (smoothed_metric > threshold).astype(int)
+        "anomaly": (df_error[f"rolling_{anomaly_error_type}"] > threshold).astype(int)
     })
     return df_anomaly
 
 def save_predictions_to_db(
-    y_pred: pd.Series,
-    predictions_column_name: str,
+    predictions: pd.DataFrame,
+    predictions_column_names: list[str],
     db_table_name: str,
     data_timestamps: pd.Timestamp,
     data_manager_config: dict[str, Any],
@@ -93,11 +97,11 @@ def save_predictions_to_db(
     Save predictions to the SQLite database using DataManager.
 
     Args:
-        y_pred: Predicted values as a Series
-        column_name: Name of the column to save the predictions to
+        predictions : pd.DataFrame containing predictions and timestamps
+        predictions_column_names: List of column names to save the predictions to
         db_table_name: Name of the table to save the predictions to
         data_timestamps: Data timestamps
-        data_manager_config: DataManager configuration dictionary
+        data_manager_config: DataManager configuration dictionary to save the predictions to
     """
     # Initialize DataManager
     data_manager = DataManager(data_manager_config)
@@ -107,12 +111,13 @@ def save_predictions_to_db(
     # Normalize timestamps to string format expected by the database
     # This works for both Series-like inputs and single Timestamp values
     timestamps_str = timestamps.dt.strftime("%Y-%m-%d %H:%M:%S")
+    predictions['Timestamps'] = timestamps_str
 
     # Create predictions DataFrame
     predictions_df = pd.DataFrame(
         {
             "Timestamps": timestamps_str,
-            predictions_column_name: y_pred.values.ravel(),
+            **{col: predictions[col].values.ravel() for col in predictions_column_names},
         }
     )
     # Save to predictions table

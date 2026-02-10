@@ -115,11 +115,12 @@ training_pipeline:
 
 inference_pipeline:
   batch_size: 100
-  smoothing_window: 5
+  rolling_window: 5
+  anomaly_error_type: mape
   anomaly_threshold: 9.5 # in percentage
-  predictions_column_name: predict_power
-  anomalies_column_name: anomaly
-  errors_column_name: mape
+  predictions_column_name: [predict_power]
+  anomalies_column_name: [anomaly]
+  errors_column_names: [mape, rolling_mape]
 
 mlflow:
   prod_experiment_name: prod_model_training
@@ -182,6 +183,9 @@ data_manager:
       primary_key: true
       not_null: true
     - name: mape
+      type: REAL
+      not_null: true
+    - name: rolling_mape
       type: REAL
       not_null: true
   anomalies_table_schema:
