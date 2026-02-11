@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
-from dash import no_update
+import dash_bootstrap_components as dbc
+from dash import html, no_update
 
 from app_data_manager.data_manager import DataManager
 from app_data_manager.utils import read_config
@@ -274,3 +275,124 @@ def get_model_info_by_alias(
         "test_mae": test_mae,
         "test_mape": test_mape,
     }
+
+
+# Model tracking page: format model info for display
+def format_last_updated(info):
+    if info.get("last_updated") is None:
+        return "N/A"
+    return info["last_updated"].strftime("%Y-%m-%d %H:%M:%S")
+
+
+def format_mae(info):
+    if info.get("test_mae") is None:
+        return "MAE: N/A"
+    return f"MAE: {info['test_mae']:.4f}"
+
+
+def format_mape(info):
+    if info.get("test_mape") is None:
+        return "MAPE: N/A"
+    return f"MAPE: {info['test_mape']:.4f}%"
+
+
+def create_challenger_info_content(challenger_info):
+    """Build HTML for challenger model info card. Returns html.P with message if challenger_info is None."""
+    if not challenger_info:
+        return html.P(
+            "No challenger model found in registry. Make sure MLflow is running and a model is registered with 'challenger' alias.",
+            className="mt-empty",
+        )
+    return dbc.Row(
+        [
+            dbc.Col(
+                [
+                    html.H6("Model Name", className="mt-label"),
+                    html.P(challenger_info.get("model_name", "N/A"), className="mt-value"),
+                ],
+                width=3,
+            ),
+            dbc.Col(
+                [
+                    html.H6("Version", className="mt-label"),
+                    html.P(
+                        f"v{challenger_info['version']}" if challenger_info.get("version") else "N/A",
+                        className="mt-value",
+                    ),
+                ],
+                width=2,
+            ),
+            dbc.Col(
+                [
+                    html.H6("Last Updated", className="mt-label"),
+                    html.P(format_last_updated(challenger_info), className="mt-value"),
+                ],
+                width=3,
+            ),
+            dbc.Col(
+                [
+                    html.H6("Test Set Error Metrics", className="mt-label"),
+                    html.Div(
+                        [
+                            html.P(format_mae(challenger_info), className="mt-metric"),
+                            html.P(format_mape(challenger_info), className="mt-metric-last"),
+                        ],
+                        className="mt-metrics-wrap",
+                    ),
+                ],
+                width=4,
+            ),
+        ],
+        className="g-4",
+    )
+
+
+def create_champion_info_content(champion_info):
+    """Build HTML for champion model info card. Returns html.P with message if champion_info is None."""
+    if not champion_info:
+        return html.P(
+            "No champion model found in registry. Make sure MLflow is running and a model is registered in Production stage.",
+            className="mt-empty",
+        )
+    return dbc.Row(
+        [
+            dbc.Col(
+                [
+                    html.H6("Model Name", className="mt-label"),
+                    html.P(champion_info.get("model_name", "N/A"), className="mt-value"),
+                ],
+                width=3,
+            ),
+            dbc.Col(
+                [
+                    html.H6("Version", className="mt-label"),
+                    html.P(
+                        f"v{champion_info['version']}" if champion_info.get("version") else "N/A",
+                        className="mt-value",
+                    ),
+                ],
+                width=2,
+            ),
+            dbc.Col(
+                [
+                    html.H6("Last Updated", className="mt-label"),
+                    html.P(format_last_updated(champion_info), className="mt-value"),
+                ],
+                width=3,
+            ),
+            dbc.Col(
+                [
+                    html.H6("Test Set Error Metrics", className="mt-label"),
+                    html.Div(
+                        [
+                            html.P(format_mae(champion_info), className="mt-metric"),
+                            html.P(format_mape(champion_info), className="mt-metric-last"),
+                        ],
+                        className="mt-metrics-wrap",
+                    ),
+                ],
+                width=4,
+            ),
+        ],
+        className="g-4",
+    )
