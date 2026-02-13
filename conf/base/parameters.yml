@@ -123,6 +123,10 @@ inference_pipeline:
   anomalies_column_name: [anomaly]
   errors_column_names: [mape, rolling_mape]
 
+monitoring_pipeline:
+  monitored_feature: "GenRPM"
+  wasserstein_threshold: 200
+
 mlflow:
   prod_experiment_name: prod_model_training
   registered_model_name: wind_power_predictor
