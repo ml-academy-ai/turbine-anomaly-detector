@@ -118,6 +118,7 @@ inference_pipeline:
   rolling_window: 5
   anomaly_error_type: mape
   anomaly_threshold: 9.5 # in percentage
+  inference_frequency: 2  # seconds between checks for new data
   predictions_column_name: [predict_power]
   anomalies_column_name: [anomaly]
   errors_column_names: [mape, rolling_mape]
@@ -139,6 +140,7 @@ data_manager:
   predictions_table_name: predictions
   errors_table_name: errors
   anomalies_table_name: anomalies
+  streaming_frequency: 10
   raw_data_table_schema:
     - name: Timestamps
       type: TEXT
