@@ -37,7 +37,6 @@ def get_wasserstein_distance_1d(
     mon_cdf = np.cumsum(mon_p)
 
     bin_widths = np.diff(bin_edges)
-
     return float(np.sum(np.abs(ref_cdf - mon_cdf) * bin_widths))
 
 def get_retraining_trigger(

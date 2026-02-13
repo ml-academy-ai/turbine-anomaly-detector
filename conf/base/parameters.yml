@@ -125,7 +125,7 @@ inference_pipeline:
 
 monitoring_pipeline:
   monitored_feature: "GenRPM"
-  wasserstein_threshold: 200
+  wasserstein_threshold: 315
 
 mlflow:
   prod_experiment_name: prod_model_training
