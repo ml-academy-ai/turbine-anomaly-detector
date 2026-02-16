@@ -141,3 +141,5 @@ monitoring_pipeline:
   monitored_feature: "GenRPM"
   wasserstein_threshold: 315
 ```
+
+### We will use this trigger to re-train the pipeline when we introduce orchestration

@@ -36,6 +36,8 @@ dependencies = [
     "kedro-viz>=12.2.0",
     "dash>=4.0.0",
     "dash-bootstrap-components>=2.0.4",
+    "pytest>=7.4.4",
+    "pytest-cov>=6.3.0",
 ]
 
 [project.scripts]

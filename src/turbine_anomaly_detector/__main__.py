@@ -22,3 +22,21 @@ def main(*args, **kwargs) -> Any:
 
 if __name__ == "__main__":
     main()
+
+model = RandomForestClassifier()
+df = pd.read_csv("data/01_raw/turbine_data.csv")
+
+
+
+def build_features(df):
+    return df[["b", "a", "c"]]  # column order changed
+
+X = build_features(df)
+preds = model.predict(X)
+# ✅ Function runs
+# ✅ model.predict() runs
+# ✅ Pipeline succeeds
+# ❌ Predictions are wrong
+
+
+

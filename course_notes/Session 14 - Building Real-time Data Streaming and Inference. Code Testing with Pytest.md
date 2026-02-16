@@ -1,4 +1,5 @@
 # Data Streaming App
+### Explain the slide `Real-time data ingestion`
 ### Create `entrypoints/app_stream_data.py`
 ```python
 import os
@@ -72,6 +73,7 @@ data_manager:
 ### Run `entrypoints/app_stream_data.py`
 
 # Real-time inference
+### Explain the slide `Data flow in inference`
 
 ### Add `inference_frequency` to the config file:
 ```yaml
@@ -176,3 +178,119 @@ if __name__ == "__main__":
 ### Ideally, we need to take the last time step only in the pipeline, but for demonstration, it's better to have the batch and overwrite.
 
 # Code Testing with Pytest
+### Introduce Python testing up to `Unit Tests` example and say that we will use Pytest in the project
+### Got to the `src/ test` directory, delete `test_run.py`, we don't need it.
+
+### Add `pytest` to uv
+```bash
+uv add pytest
+uv add pytest-cov
+```
+
+### Create `test_feat_eng_pipeline.py`
+```python
+"""Unit tests for feature_eng pipeline nodes."""
+import pytest
+import pandas as pd
+
+from turbine_anomaly_detector.pipelines.feature_eng.nodes import add_lag_features
+
+
+def test_add_lag_features_creates_expected_columns():
+    df = pd.DataFrame({"col1": [10, 20, 30, 40], "col2": [1, 2, 3, 4]})
+    result = add_lag_features(df, lags_dict={"col1": [1, 2], "col2": [1]})
+    assert "col1_lag1" in result.columns
+    assert "col1_lag2" in result.columns
+    assert "col2_lag1" in result.columns
+    assert result["col1_lag1"].iloc[1] == 10
+    assert result["col1_lag2"].iloc[2] == 10
+    assert result["col2_lag1"].iloc[1] == 1
+```
+
+### Run
+```bash
+pytest tests/test_feat_eng_pipeline.py                                     
+```
+### We see the test report
+- We see which part of the code is tested or not
+- We see the test coverage - how much of your source code is executed when the tests run.
+- So, you can have a high vocerage but poor testing still, but it gives you some indication
+
+### Let's break something
+- E.g., change `assert result["col2_lag1"].iloc[1] == 1` to `==2`
+- We see the test failed.
+
+### We can also test everything in the folder
+```bash
+pytest tests
+```
+
+### However, for this, the file must start with `test_...`
+### Also, the name of the functions must start with `test_....`
+
+### To re-use different objects in different tests, we can use `conftest.py`
+- This file is used to store different configurations for the test
+- In the majority of cases, it's used to store fixtures
+- Fixtures are reusable components across tests
+
+### Add fixture to `conftest.py`
+```python
+import pytest
+import pandas as pd
+
+
+@pytest.fixture
+def sample_df():
+    return pd.DataFrame({"col1": [10, 20, 30, 40], "col2": [1, 2, 3, 4]})
+```
+
+### Then, we can use this fixture
+```python
+def test_add_lag_features_creates_expected_columns(sample_df):
+    result = add_lag_features(sample_df, lags_dict={"col1": [1, 2], "col2": [1]})
+    assert "col1_lag1" in result.columns
+    assert "col1_lag2" in result.columns
+    assert "col2_lag1" in result.columns
+    assert result["col1_lag1"].iloc[1] == 10
+    assert result["col1_lag2"].iloc[2] == 10
+    assert result["col2_lag1"].iloc[1] == 1
+```
+
+### We can even run tests with CLI command `pytest`
+
+
+### Add one more fixture + `import numpy as np`
+```python
+@pytest.fixture
+def dataset_with_outliers():
+    """Small synthetic dataset with outliers in one column only."""
+    n = 15
+    timestamps = pd.date_range("2024-01-01", periods=n, freq="h")
+    # Smooth series
+    t = np.linspace(0, 2 * np.pi, n)
+    power = 50 + 10 * np.sin(t)
+
+    df = pd.DataFrame({"power": power, "Timestamps": timestamps})
+
+    # Outliers in power only
+    df.loc[5, "power"] = 200   # spike
+    df.loc[10, "power"] = -10  # impossible drop
+    return df
+```
+
+### Add a test
+```python
+def test_remove_diff_outliers_one_column(dataset_with_outliers):
+    result = remove_diff_outliers(
+        dataset_with_outliers,
+        diff_thresholds={"power": 30},
+    )
+    assert result.notna().all().all() # make sure no NaN values are introduced
+    assert result["power"].iloc[5] != 200 # make sure the outlier is removed
+    assert result["power"].iloc[10] != -10 # make sure the outlier is removed
+```
+
+
+### We stop here
+“In most ML teams, the highest ROI comes from strong unit tests and clean pipeline design. 
+Deep integration testing across services is typically handled by platform or DevOps teams.”
