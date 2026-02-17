@@ -32,7 +32,10 @@ layout = dbc.Container(
                     [
                         html.Div(
                             [
-                                html.H5("Components and tools", className="arch-section-title"),
+                                html.H5(
+                                    "Components and tools",
+                                    className="arch-section-title",
+                                ),
                                 html.Ul(
                                     [
                                         _li_bold_tools(
@@ -129,7 +132,10 @@ layout = dbc.Container(
                     [
                         html.Div(
                             [
-                                html.H5("Architecture Diagram", className="arch-diagram-title"),
+                                html.H5(
+                                    "Architecture Diagram",
+                                    className="arch-diagram-title",
+                                ),
                                 html.Div(
                                     id="architecture-image-container",
                                     children=[

@@ -4,7 +4,7 @@ import time
 import tomllib
 from pathlib import Path
 
-from kedro.framework.project import configure_project 
+from kedro.framework.project import configure_project
 from kedro.framework.session import KedroSession
 from kedro.framework.startup import bootstrap_project
 
@@ -16,8 +16,8 @@ sys.path.append(str(project_root))
 # Change to project directory so relative paths resolve correctly
 os.chdir(project_root)
 
-from app_data_manager.data_manager import DataManager 
-from app_data_manager.utils import read_config
+from app_data_manager.data_manager import DataManager  # noqa: E402
+from app_data_manager.utils import read_config  # noqa: E402
 
 
 def run_inference_pipeline(env: str = "local") -> None:

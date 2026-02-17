@@ -1,24 +1,25 @@
-import optuna
-from typing import Any
+from typing import Any, Literal
+
+import joblib
 import numpy as np
+import optuna
 import pandas as pd
-from typing import Literal
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import TimeSeriesSplit
 from catboost import CatBoostRegressor
 from sklearn.ensemble import RandomForestRegressor as RF
-from turbine_anomaly_detector.common.metrics import compute_metrics
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import StandardScaler
+
 import mlflow
-import joblib
+from turbine_anomaly_detector.common.metrics import compute_metrics
 
 SEED = 42
 
 
 def objective(
-    trial: optuna.Trial, 
-    x_train: np.ndarray, 
-    y_train: np.ndarray, 
-    params: dict[str, Any]
+    trial: optuna.Trial,
+    x_train: np.ndarray,
+    y_train: np.ndarray,
+    params: dict[str, Any],
 ) -> float:
     """
     Optuna objective for CatBoost using eval_model and MLflow child runs.
@@ -29,7 +30,7 @@ def objective(
     model = params["optuna_search"]["model"]
     sampled_model_params = sample_optuna_params(
         params["optuna_search"]["model_params"][model], trial
-        )
+    )
 
     # Evaluate using CV evaluator (TimeSeriesSplit cross-validation)
     eval_results = eval_model(
@@ -39,7 +40,6 @@ def objective(
         model_params=sampled_model_params,
     )
     return eval_results["cv_mape"]
-
 
 
 def sample_optuna_params(
@@ -91,7 +91,7 @@ def sample_optuna_params(
     return param_grid
 
 
-def eval_model(
+def eval_model(  # noqa: PLR0913
     x_train: pd.DataFrame,
     y_train: pd.Series,
     n_splits: int = 3,

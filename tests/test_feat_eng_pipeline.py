@@ -1,8 +1,10 @@
 """Unit tests for feature_eng pipeline nodes."""
-import pytest
-import pandas as pd
 
-from turbine_anomaly_detector.pipelines.feature_eng.nodes import add_lag_features, remove_diff_outliers
+from tests.conftest import OUTLIER_HIGH, OUTLIER_LOW
+from turbine_anomaly_detector.pipelines.feature_eng.nodes import (
+    add_lag_features,
+    remove_diff_outliers,
+)
 
 
 def test_add_lag_features_creates_expected_columns(sample_df):
@@ -10,9 +12,9 @@ def test_add_lag_features_creates_expected_columns(sample_df):
     assert "col1_lag1" in result.columns
     assert "col1_lag2" in result.columns
     assert "col2_lag1" in result.columns
-    assert result["col1_lag1"].iloc[1] == 10
-    assert result["col1_lag2"].iloc[2] == 10
-    assert result["col2_lag1"].iloc[1] == 1
+    assert result["col1_lag1"].iloc[1] == 10  # noqa: PLR2004
+    assert result["col1_lag2"].iloc[2] == 10  # noqa: PLR2004
+    assert result["col2_lag1"].iloc[1] == 1  # noqa: PLR2004
 
 
 def test_remove_diff_outliers_one_column(dataset_with_outliers):
@@ -20,6 +22,6 @@ def test_remove_diff_outliers_one_column(dataset_with_outliers):
         dataset_with_outliers,
         diff_thresholds={"power": 30},
     )
-    assert result.notna().all().all() # make sure no NaN values are introduced
-    assert result["power"].iloc[5] != 200 # make sure the outlier is removed
-    assert result["power"].iloc[10] != -10 # make sure the outlier is removed
+    assert result.notna().all().all()  # make sure no NaN values are introduced
+    assert result["power"].iloc[5] != OUTLIER_HIGH  # make sure the outlier is removed
+    assert result["power"].iloc[10] != OUTLIER_LOW  # make sure the outlier is removed

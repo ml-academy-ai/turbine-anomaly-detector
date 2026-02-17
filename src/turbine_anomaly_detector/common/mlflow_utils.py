@@ -1,7 +1,10 @@
 """Common MLflow utilities for model loading and registry operations."""
-import mlflow
+
 from typing import Any
+
 from mlflow.tracking import MlflowClient
+
+import mlflow
 
 
 def load_model_by_alias(registered_model_name: str, alias: str) -> Any:

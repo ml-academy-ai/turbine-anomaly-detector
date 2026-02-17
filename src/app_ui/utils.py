@@ -1,17 +1,17 @@
 import copy
+import os
+from datetime import datetime
 from pathlib import Path
 
+import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objects as go
-import dash_bootstrap_components as dbc
 from dash import html, no_update
+from mlflow.tracking import MlflowClient
 
+import mlflow
 from app_data_manager.data_manager import DataManager
 from app_data_manager.utils import read_config
-import mlflow
-from mlflow.tracking import MlflowClient
-from datetime import datetime
-import os
 
 # Configuration (same as home page: parameters.yml)
 project_root = Path(__file__).resolve().parents[2]
@@ -19,23 +19,25 @@ parameters_path = project_root / "conf" / "base" / "parameters.yml"
 config = read_config(parameters_path)
 
 
-def load_prod_data(n_data_points: int = 100000, anomaly_error_type: str = "mape") -> pd.DataFrame:
+def load_prod_data(
+    n_data_points: int = 100000, anomaly_error_type: str = "mape"
+) -> pd.DataFrame:
     """
     Load last N rows from predictions, errors, anomalies, raw_data; merge on Timestamps.
     Returns only DB columns: Timestamps, predict_power, mape, anomaly, Power (if present).
     """
     data_manager = DataManager(config["data_manager"])
-    predictions = data_manager.get_last_n_points(n_data_points, table_name="predictions")
+    predictions = data_manager.get_last_n_points(
+        n_data_points, table_name="predictions"
+    )
     errors = data_manager.get_last_n_points(n_data_points, table_name="errors")
     anomalies = data_manager.get_last_n_points(n_data_points, table_name="anomalies")
     raw_data = data_manager.get_last_n_points(n_data_points, table_name="raw_data")
     df = predictions.copy()
     df = df.merge(
-        errors[[
-            "Timestamps", 
-            anomaly_error_type, 
-            f"rolling_{anomaly_error_type}"
-            ]].drop_duplicates(subset=["Timestamps"]),
+        errors[
+            ["Timestamps", anomaly_error_type, f"rolling_{anomaly_error_type}"]
+        ].drop_duplicates(subset=["Timestamps"]),
         on="Timestamps",
         how="left",
     )
@@ -46,8 +48,8 @@ def load_prod_data(n_data_points: int = 100000, anomaly_error_type: str = "mape"
     )
 
     df = df.merge(
-        raw_data[["Timestamps", "Power"]].drop_duplicates(subset=["Timestamps"]), 
-        on="Timestamps", 
+        raw_data[["Timestamps", "Power"]].drop_duplicates(subset=["Timestamps"]),
+        on="Timestamps",
         how="left",
     )
     df.drop_duplicates(subset=["Timestamps"], inplace=True)
@@ -138,7 +140,14 @@ def create_timeseries_plot(df: pd.DataFrame) -> go.Figure:
             xaxis_title="Time",
             yaxis_title="Power",
             annotations=[
-                dict(text="No data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+                dict(
+                    text="No data available",
+                    xref="paper",
+                    yref="paper",
+                    x=0.5,
+                    y=0.5,
+                    showarrow=False,
+                )
             ],
         )
         return fig
@@ -202,7 +211,9 @@ def sync_xaxis(relayout_data, current_figure):
     x_range = None
     if "xaxis.range[0]" in relayout_data and "xaxis.range[1]" in relayout_data:
         x_range = [relayout_data["xaxis.range[0]"], relayout_data["xaxis.range[1]"]]
-    elif "xaxis.range" in relayout_data and isinstance(relayout_data["xaxis.range"], list):
+    elif "xaxis.range" in relayout_data and isinstance(
+        relayout_data["xaxis.range"], list
+    ):
         x_range = relayout_data["xaxis.range"]
 
     if x_range:
@@ -251,22 +262,26 @@ def get_model_info_by_alias(
     def _first_metric(keys: list[str]) -> float | None:
         return next((metrics[k] for k in keys if k in metrics), None)
 
-    test_mae = _first_metric([
-        "test_mae",
-        "test_MAE",
-        "test_mae_err",
-        "test_MAE_err",
-        "mae_test",
-        "MAE_test",
-    ])
-    test_mape = _first_metric([
-        "test_mape",
-        "test_MAPE",
-        "test_mape_err",
-        "test_MAPE_err",
-        "mape_test",
-        "MAPE_test",
-    ])
+    test_mae = _first_metric(
+        [
+            "test_mae",
+            "test_MAE",
+            "test_mae_err",
+            "test_MAE_err",
+            "mae_test",
+            "MAE_test",
+        ]
+    )
+    test_mape = _first_metric(
+        [
+            "test_mape",
+            "test_MAPE",
+            "test_mape_err",
+            "test_MAPE_err",
+            "mape_test",
+            "MAPE_test",
+        ]
+    )
 
     return {
         "model_name": model_name,
@@ -308,7 +323,9 @@ def create_challenger_info_content(challenger_info):
             dbc.Col(
                 [
                     html.H6("Model Name", className="mt-label"),
-                    html.P(challenger_info.get("model_name", "N/A"), className="mt-value"),
+                    html.P(
+                        challenger_info.get("model_name", "N/A"), className="mt-value"
+                    ),
                 ],
                 width=3,
             ),
@@ -316,7 +333,9 @@ def create_challenger_info_content(challenger_info):
                 [
                     html.H6("Version", className="mt-label"),
                     html.P(
-                        f"v{challenger_info['version']}" if challenger_info.get("version") else "N/A",
+                        f"v{challenger_info['version']}"
+                        if challenger_info.get("version")
+                        else "N/A",
                         className="mt-value",
                     ),
                 ],
@@ -335,7 +354,9 @@ def create_challenger_info_content(challenger_info):
                     html.Div(
                         [
                             html.P(format_mae(challenger_info), className="mt-metric"),
-                            html.P(format_mape(challenger_info), className="mt-metric-last"),
+                            html.P(
+                                format_mape(challenger_info), className="mt-metric-last"
+                            ),
                         ],
                         className="mt-metrics-wrap",
                     ),
@@ -359,7 +380,9 @@ def create_champion_info_content(champion_info):
             dbc.Col(
                 [
                     html.H6("Model Name", className="mt-label"),
-                    html.P(champion_info.get("model_name", "N/A"), className="mt-value"),
+                    html.P(
+                        champion_info.get("model_name", "N/A"), className="mt-value"
+                    ),
                 ],
                 width=3,
             ),
@@ -367,7 +390,9 @@ def create_champion_info_content(champion_info):
                 [
                     html.H6("Version", className="mt-label"),
                     html.P(
-                        f"v{champion_info['version']}" if champion_info.get("version") else "N/A",
+                        f"v{champion_info['version']}"
+                        if champion_info.get("version")
+                        else "N/A",
                         className="mt-value",
                     ),
                 ],
@@ -386,7 +411,9 @@ def create_champion_info_content(champion_info):
                     html.Div(
                         [
                             html.P(format_mae(champion_info), className="mt-metric"),
-                            html.P(format_mape(champion_info), className="mt-metric-last"),
+                            html.P(
+                                format_mape(champion_info), className="mt-metric-last"
+                            ),
                         ],
                         className="mt-metrics-wrap",
                     ),

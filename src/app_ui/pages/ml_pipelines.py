@@ -34,7 +34,10 @@ layout = dbc.Container(
                                 html.H5("Pipeline Details", className="mp-panel-title"),
                                 html.Div(
                                     [
-                                        html.H6("Feature Engineering Pipeline", className="mp-section-title"),
+                                        html.H6(
+                                            "Feature Engineering Pipeline",
+                                            className="mp-section-title",
+                                        ),
                                         html.Ul(
                                             [
                                                 html.Li(
@@ -61,7 +64,10 @@ layout = dbc.Container(
                                             ],
                                             className="mp-section-list",
                                         ),
-                                        html.H6("Training Pipeline", className="mp-section-title"),
+                                        html.H6(
+                                            "Training Pipeline",
+                                            className="mp-section-title",
+                                        ),
                                         html.Ul(
                                             [
                                                 html.Li(
@@ -88,7 +94,10 @@ layout = dbc.Container(
                                             ],
                                             className="mp-section-list",
                                         ),
-                                        html.H6("Inference Pipeline", className="mp-section-title"),
+                                        html.H6(
+                                            "Inference Pipeline",
+                                            className="mp-section-title",
+                                        ),
                                         html.Ul(
                                             [
                                                 html.Li(
@@ -125,7 +134,10 @@ layout = dbc.Container(
                     [
                         html.Div(
                             [
-                                html.H5("ML Pipeline Visualization", className="mp-viz-title"),
+                                html.H5(
+                                    "ML Pipeline Visualization",
+                                    className="mp-viz-title",
+                                ),
                                 # Kedro-Viz iframe - embeds visualization in an iframe
                                 html.Iframe(
                                     src=KEDRO_VIZ_URI,

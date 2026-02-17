@@ -1,12 +1,14 @@
 """Multi-page Dash application for ML model monitoring and visualization."""
+
 import os
 import sys
 from pathlib import Path
 
 import dash
 import dash_bootstrap_components as dbc
+from dash import Input, Output, State, html
+
 from app_ui.components.sidebar import sidebar
-from dash import Input, Output, State, dcc, html
 
 # Path setup for working directory and other runtime needs
 project_root = Path(__file__).resolve().parents[2]
@@ -38,6 +40,7 @@ app.layout = html.Div(
         content,
     ],
 )
+
 
 # Callback to toggle sidebar collapse
 @app.callback(

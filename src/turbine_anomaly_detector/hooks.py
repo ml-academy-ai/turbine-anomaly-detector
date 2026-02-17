@@ -1,6 +1,9 @@
 import os
-import mlflow
+
 from kedro.framework.hooks import hook_impl
+
+import mlflow
+
 
 class MLFlowHook:
     """Project hooks for MLflow tracking URI setup."""
@@ -13,6 +16,5 @@ class MLFlowHook:
         for local development. In Docker, the environment variable should be set
         to http://mlflow:5001 (internal service name).
         """
-        print(f"Setting MLflow tracking URI")
         tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:8080")
         mlflow.set_tracking_uri(tracking_uri)

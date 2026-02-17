@@ -99,13 +99,23 @@ class DataManager:
         Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
         Path(self.config["sqlite_db_path"]).unlink(missing_ok=True)
 
-        history_path = Path(self.config["history_data_folder"]) / self.config["history_data_filename"]
+        history_path = (
+            Path(self.config["history_data_folder"])
+            / self.config["history_data_filename"]
+        )
         df = pd.read_parquet(history_path)
 
         with self._get_connection() as conn:
             schema_sql = self._build_schema_sql(self.config["raw_data_table_schema"])
-            conn.execute(f"CREATE TABLE {self.config['raw_data_table_name']} ({schema_sql})")
-            df.to_sql(self.config["raw_data_table_name"], conn, if_exists="append", index=False)
+            conn.execute(
+                f"CREATE TABLE {self.config['raw_data_table_name']} ({schema_sql})"
+            )
+            df.to_sql(
+                self.config["raw_data_table_name"],
+                conn,
+                if_exists="append",
+                index=False,
+            )
 
     def init_predictions_db_table(self) -> None:
         """
@@ -188,8 +198,6 @@ class DataManager:
                 f"ON {self.config['anomalies_table_name']} (Timestamps)"
             )
 
-    
-
     def get_last_n_points(self, n: int, table_name: str) -> pd.DataFrame:
         """
         Retrieve the last N data points from the specified table.
@@ -211,9 +219,9 @@ class DataManager:
 
         with self._get_connection() as conn:
             df = pd.read_sql_query(
-                f"SELECT * FROM {table_name} ORDER BY Timestamps DESC LIMIT ?", # ? is a placeholder for n
+                f"SELECT * FROM {table_name} ORDER BY Timestamps DESC LIMIT ?",  # ? is a placeholder for n
                 conn,
-                params=[n], # n is the number of points to retrieve
+                params=[n],  # n is the number of points to retrieve
             )
             return df.iloc[::-1].reset_index(drop=True)
 
@@ -251,7 +259,9 @@ class DataManager:
 
         # Normalize timestamps to consistent format to prevent duplicates
         # Converts various formats (ISO, pandas Timestamp, etc.) to "YYYY-MM-DD HH:MM:SS"
-        df["Timestamps"] = pd.to_datetime(df["Timestamps"]).dt.strftime("%Y-%m-%d %H:%M:%S")
+        df["Timestamps"] = pd.to_datetime(df["Timestamps"]).dt.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
         # Extract column names for SQL statement construction
         cols = list(df.columns)

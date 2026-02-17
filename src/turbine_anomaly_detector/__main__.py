@@ -1,6 +1,7 @@
 """turbine-anomaly-detector file for ensuring the package is executable
 as `turbine-anomaly-detector` and `python -m turbine_anomaly_detector`
 """
+
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,7 @@ def main(*args, **kwargs) -> Any:
     package_name = Path(__file__).parent.name
     configure_project(package_name)
 
-    interactive = hasattr(sys, 'ps1')
+    interactive = hasattr(sys, "ps1")
     kwargs["standalone_mode"] = not interactive
 
     run = find_run_command(package_name)
@@ -22,21 +23,3 @@ def main(*args, **kwargs) -> Any:
 
 if __name__ == "__main__":
     main()
-
-model = RandomForestClassifier()
-df = pd.read_csv("data/01_raw/turbine_data.csv")
-
-
-
-def build_features(df):
-    return df[["b", "a", "c"]]  # column order changed
-
-X = build_features(df)
-preds = model.predict(X)
-# ✅ Function runs
-# ✅ model.predict() runs
-# ✅ Pipeline succeeds
-# ❌ Predictions are wrong
-
-
-

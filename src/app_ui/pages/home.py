@@ -3,14 +3,13 @@ from pathlib import Path
 
 import dash
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
 from dash import Input, Output, State, callback, callback_context, dcc, html
 
 from src.app_data_manager.utils import read_config
 from src.app_ui.utils import (
-    load_prod_data,
     create_error_plot,
     create_timeseries_plot,
+    load_prod_data,
     sync_xaxis,
 )
 

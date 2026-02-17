@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
-from typing import Optional
+
 
 def get_wasserstein_distance_1d(
     reference_df: pd.DataFrame,
     monitored_df: pd.DataFrame,
     feature_col: str,
-    bins: Optional[int] = None,
+    bins: int | None = None,
 ) -> float:
     """
     Histogram-based approximation of 1D Wasserstein distance
@@ -24,7 +24,7 @@ def get_wasserstein_distance_1d(
         bin_edges = np.linspace(
             min(reference.min(), monitored.min()),
             max(reference.max(), monitored.max()),
-            bins + 1
+            bins + 1,
         )
 
     ref_hist, _ = np.histogram(reference, bins=bin_edges)
@@ -38,6 +38,7 @@ def get_wasserstein_distance_1d(
 
     bin_widths = np.diff(bin_edges)
     return float(np.sum(np.abs(ref_cdf - mon_cdf) * bin_widths))
+
 
 def get_retraining_trigger(
     wasserstein_distance: float,

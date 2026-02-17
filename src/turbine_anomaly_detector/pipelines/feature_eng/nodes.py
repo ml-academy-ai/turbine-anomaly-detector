@@ -1,6 +1,8 @@
-import pandas as pd
-import numpy as np
 from typing import Any
+
+import numpy as np
+import pandas as pd
+
 from app_data_manager.data_manager import DataManager
 
 
@@ -10,13 +12,17 @@ def rename_columns(df: pd.DataFrame, columns: dict[str, str]) -> pd.DataFrame:
     """
     return df.rename(columns=columns)
 
+
 def drop_columns(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     """
     Drop columns in a dataframe.
     """
     return df.drop(columns=columns)
 
-def remove_diff_outliers(df: pd.DataFrame, diff_thresholds: dict[str, float]) -> pd.DataFrame:
+
+def remove_diff_outliers(
+    df: pd.DataFrame, diff_thresholds: dict[str, float]
+) -> pd.DataFrame:
     """
     Remove outliers based on absolute first-order diff and forward-fill the gaps.
     Parameters
@@ -49,8 +55,10 @@ def remove_diff_outliers(df: pd.DataFrame, diff_thresholds: dict[str, float]) ->
 
         return df_clean
 
-    
-def smooth_signal(df: pd.DataFrame, columns: str, window: int, method: str = "mean") -> pd.DataFrame:
+
+def smooth_signal(
+    df: pd.DataFrame, columns: str, window: int, method: str = "mean"
+) -> pd.DataFrame:
     """
     Smooth a time-series column using rolling mean or median.
 
@@ -76,14 +84,18 @@ def smooth_signal(df: pd.DataFrame, columns: str, window: int, method: str = "me
 
     for col in columns:
         if method == "mean":
-            df_smoothed[col] = df_smoothed[col].rolling(
-                window=window, min_periods=1, center=False
-            ).mean()
+            df_smoothed[col] = (
+                df_smoothed[col]
+                .rolling(window=window, min_periods=1, center=False)
+                .mean()
+            )
 
         elif method == "median":
-            df_smoothed[col] = df_smoothed[col].rolling(
-                window=window, min_periods=1, center=False
-            ).median()
+            df_smoothed[col] = (
+                df_smoothed[col]
+                .rolling(window=window, min_periods=1, center=False)
+                .median()
+            )
 
         else:
             raise ValueError("method must be 'mean' or 'median'")
@@ -91,7 +103,9 @@ def smooth_signal(df: pd.DataFrame, columns: str, window: int, method: str = "me
     return df_smoothed
 
 
-def add_lag_features(df: pd.DataFrame, lags_dict: dict[str, list[int]], drop_na=False) -> pd.DataFrame:
+def add_lag_features(
+    df: pd.DataFrame, lags_dict: dict[str, list[int]], drop_na=False
+) -> pd.DataFrame:
     """
     Add lag features to DataFrame.
 
@@ -236,6 +250,7 @@ def load_inference_batch(
     data_manager = DataManager(data_manager_config)
     df = data_manager.get_last_n_points(n=batch_size, table_name=table_name)
     return df
+
 
 def get_data_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     """

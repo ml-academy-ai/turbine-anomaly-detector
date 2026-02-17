@@ -1,4 +1,5 @@
 """Programmatic entrypoint for running the Kedro training pipeline."""
+
 import os
 import sys
 import tomllib

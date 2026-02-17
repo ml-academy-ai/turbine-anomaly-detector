@@ -1,8 +1,19 @@
 from kedro.pipeline import Pipeline
-from turbine_anomaly_detector.pipelines.feature_eng.pipeline import feat_eng_pipeline_training, feat_eng_pipeline_inference
-from turbine_anomaly_detector.pipelines.training.pipeline import create_pipeline as create_training_pipeline
-from turbine_anomaly_detector.pipelines.inference.pipeline import create_pipeline as create_inference_pipeline
-from turbine_anomaly_detector.pipelines.monitoring.pipeline import create_monitoring_pipeline
+
+from turbine_anomaly_detector.pipelines.feature_eng.pipeline import (
+    feat_eng_pipeline_inference,
+    feat_eng_pipeline_training,
+)
+from turbine_anomaly_detector.pipelines.inference.pipeline import (
+    create_pipeline as create_inference_pipeline,
+)
+from turbine_anomaly_detector.pipelines.monitoring.pipeline import (
+    create_monitoring_pipeline,
+)
+from turbine_anomaly_detector.pipelines.training.pipeline import (
+    create_pipeline as create_training_pipeline,
+)
+
 
 def register_pipelines() -> dict[str, Pipeline]:
     """Register the project's pipelines.

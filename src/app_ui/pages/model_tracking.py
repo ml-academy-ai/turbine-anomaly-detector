@@ -1,6 +1,7 @@
 """
 Model Tracking & Registry Page - MLflow Integration
 """
+
 import os
 import sys
 from datetime import datetime
@@ -12,10 +13,10 @@ from dash import Input, Output, callback, dcc, html
 
 from app_data_manager.utils import read_config
 from app_ui.utils import (
-    get_model_info_by_alias,
-    create_champion_info_content,
     create_challenger_info_content,
-) 
+    create_champion_info_content,
+    get_model_info_by_alias,
+)
 
 # Configuration setup
 project_root = Path(__file__).resolve().parents[3]
@@ -75,7 +76,10 @@ layout = dbc.Container(
                                         size="lg",
                                         className="mt-btn-full mt-btn-mint",
                                     ),
-                                    html.Div(id="model-info-status", className="mt-status-wrap mt-status-under-btn"),
+                                    html.Div(
+                                        id="model-info-status",
+                                        className="mt-status-wrap mt-status-under-btn",
+                                    ),
                                 ],
                                 className="mt-btn-with-status",
                             ),
@@ -160,7 +164,10 @@ layout = dbc.Container(
 # When "Refresh model info" is clicked, we bump both trigger stores so the champion
 # and challenger info callbacks re-run and refetch from MLflow.
 @callback(
-    [Output("champion-info-trigger", "data"), Output("challenger-info-trigger", "data")],
+    [
+        Output("champion-info-trigger", "data"),
+        Output("challenger-info-trigger", "data"),
+    ],
     Input("refresh-model-info-btn", "n_clicks"),
     prevent_initial_call=True,
 )
@@ -237,7 +244,11 @@ def update_status_light(champion_status, challenger_status, last_ts):
         return html.Span("—", className="mt-status-text")
     both_ok = champion_status == "ok" and challenger_status == "ok"
     # Red light: champion or challenger is missing in the registry; green when both are present.
-    light_class = "mt-status-light mt-status-light--green" if both_ok else "mt-status-light mt-status-light--red"
+    light_class = (
+        "mt-status-light mt-status-light--green"
+        if both_ok
+        else "mt-status-light mt-status-light--red"
+    )
     return html.Div(
         [
             html.Span(className=light_class),
