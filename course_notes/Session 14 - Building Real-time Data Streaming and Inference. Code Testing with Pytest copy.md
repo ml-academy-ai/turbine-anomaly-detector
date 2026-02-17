@@ -38,15 +38,17 @@ def stream_data_to_db() -> None:
         data_manager.init_anomalies_db_table()
 
         # Iterate over each row and insert one at a time
-        for idx, row in inference_data.iterrows():
+        for i, (idx, row) in enumerate(inference_data.iterrows()):
             # Convert single row to DataFrame for insertion
             row_df = row.to_frame().T
 
             # Insert single row
-            data_manager.insert_data_to_db(row_df, table_name=config_data_manager["raw_data_table_name"])
+            data_manager.insert_data_to_db(
+                row_df, table_name=config_data_manager["raw_data_table_name"]
+            )
 
             # Sleep before next insertion
-            if idx < len(inference_data) - 1:  # Don't sleep after last row
+            if i < len(inference_data) - 1:  # Don't sleep after last row
                 time.sleep(config_data_manager["streaming_frequency"])
 
             print(idx)
