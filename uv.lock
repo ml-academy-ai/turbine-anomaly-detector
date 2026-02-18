@@ -1798,6 +1798,18 @@ wheels = [
 ]
 
 [[package]]
+name = "nbstripout"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "nbformat" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/57/6d/8d4654b4fb6374483334b3734c48c7ba494c71cb8fa216411a72063160c5/nbstripout-0.9.0.tar.gz", hash = "sha256:4354284d11309f254a6ba4bd9e2f8c5953b16474b7431c278ce67b470e2123a2", size = 32002, upload-time = "2026-01-17T18:46:23.282Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/0d/cae9c3f6e9e5d95936a83f79508bfdb1ee7b45da2a348b2af3e16d156ed1/nbstripout-0.9.0-py3-none-any.whl", hash = "sha256:98acb9d8152beeece931564bf1a7b8e7763d9f0919b09103bbb181913bbe0b3d", size = 18839, upload-time = "2026-01-17T18:46:20.91Z" },
+]
+
+[[package]]
 name = "nest-asyncio"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3326,6 +3338,7 @@ dependencies = [
     { name = "kedro-viz" },
     { name = "matplotlib" },
     { name = "mlflow" },
+    { name = "nbstripout" },
     { name = "notebook" },
     { name = "numpy" },
     { name = "optuna" },
@@ -3386,6 +3399,7 @@ requires-dist = [
     { name = "mlflow", specifier = ">=3.6,<3.7" },
     { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=1.0,<2.1" },
     { name = "nbsphinx", marker = "extra == 'docs'", specifier = "==0.8.1" },
+    { name = "nbstripout", specifier = ">=0.9.0" },
     { name = "notebook" },
     { name = "notebook", specifier = ">=7,<8" },
     { name = "numpy", specifier = ">=1.26,<2" },
