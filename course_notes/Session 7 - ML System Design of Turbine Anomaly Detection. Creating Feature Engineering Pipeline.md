@@ -149,7 +149,7 @@ def remove_diff_outliers(df: pd.DataFrame, diff_thresholds: dict[str, float]) ->
         # 4. Forward fill (and backfill if needed)
         df_clean[col] = df_clean[col].ffill().bfill()
 
-        return df_clean
+    return df_clean
 ```
 Note that we will be using the same feature engineering pipeline for both training and inference.
 
@@ -347,7 +347,7 @@ def get_features_and_target(
     Get the features and target from the dataframe.
     """
     x = df.drop(columns=target).copy()
-    y = pd.DataFrame(df[target].copy(), columns=[target])
+    y = df[[target]].copy()
     return x, y
 ```
 

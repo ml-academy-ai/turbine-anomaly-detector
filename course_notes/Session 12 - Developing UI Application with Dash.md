@@ -1276,13 +1276,11 @@ import os
 ```python
 def get_model_info_by_alias(
     alias: str,
-    mlflow_tracking_uri: str | None = None,
-    model_name: str | None = None,
+    mlflow_tracking_uri: str,
+    model_name: str,
 ) -> dict | None:
     """Return basic info + test MAE/MAPE for a model version resolved by alias."""
     # 1) Resolve tracking URI (if not provided, uses the local mlflow server)
-    if mlflow_tracking_uri is None:
-        mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:8080")
 
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     client = MlflowClient()
@@ -1312,22 +1310,26 @@ def get_model_info_by_alias(
     def _first_metric(keys: list[str]) -> float | None:
         return next((metrics[k] for k in keys if k in metrics), None)
 
-    test_mae = _first_metric([
-        "test_mae",
-        "test_MAE",
-        "test_mae_err",
-        "test_MAE_err",
-        "mae_test",
-        "MAE_test",
-    ])
-    test_mape = _first_metric([
-        "test_mape",
-        "test_MAPE",
-        "test_mape_err",
-        "test_MAPE_err",
-        "mape_test",
-        "MAPE_test",
-    ])
+    test_mae = _first_metric(
+        [
+            "test_mae",
+            "test_MAE",
+            "test_mae_err",
+            "test_MAE_err",
+            "mae_test",
+            "MAE_test",
+        ]
+    )
+    test_mape = _first_metric(
+        [
+            "test_mape",
+            "test_MAPE",
+            "test_mape_err",
+            "test_MAPE_err",
+            "mape_test",
+            "MAPE_test",
+        ]
+    )
 
     return {
         "model_name": model_name,

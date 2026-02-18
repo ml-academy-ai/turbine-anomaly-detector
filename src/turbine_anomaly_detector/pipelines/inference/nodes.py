@@ -28,7 +28,9 @@ def load_champion_model(mlflow_params: dict[str, Any]) -> Any:
     return load_model_by_alias(registered_model_name, alias=production_alias)
 
 
-def predict(features_data: pd.DataFrame, champion_model: Any) -> pd.DataFrame:
+def predict(
+    features_data: pd.DataFrame, champion_model: Any, predictions_column_name: list[str]
+) -> pd.DataFrame:
     """
     Make predictions using the champion model on new data.
 
@@ -39,14 +41,15 @@ def predict(features_data: pd.DataFrame, champion_model: Any) -> pd.DataFrame:
         training data (excluding the target column).
     champion_model : Any
         Loaded champion model (MLflow pyfunc model) that has a `predict` method.
-
+    predictions_column_name: str
+        Name of the predictions column
     Returns
     -------
     pd.Series
         Predicted target values for the input features.
     """
     predictions = champion_model.predict(features_data)
-    return pd.DataFrame(predictions, columns=["predict_power"])
+    return pd.DataFrame(predictions, columns=predictions_column_name)  # type: ignore
 
 
 def compute_model_errors(
@@ -72,7 +75,7 @@ def compute_model_errors(
     if anomaly_error_type == "mape":
         error = np.abs(y_true - y_pred) / (y_true + 1e-8) * 100
         error_column_name = "mape"
-    return pd.DataFrame(error, columns=[error_column_name])
+    return pd.DataFrame(error, columns=[error_column_name])  # type: ignore
 
 
 def compute_rolling_error(df_error: pd.DataFrame, rolling_window: int) -> pd.DataFrame:
@@ -102,7 +105,7 @@ def save_predictions_to_db(
     predictions: pd.DataFrame,
     predictions_column_names: list[str],
     db_table_name: str,
-    data_timestamps: pd.Timestamp,
+    data_timestamps: pd.DataFrame,
     data_manager_config: dict[str, Any],
 ) -> None:
     """

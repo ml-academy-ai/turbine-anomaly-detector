@@ -171,7 +171,7 @@ def save_predictions_to_db(
     predictions: pd.DataFrame,
     predictions_column_names: list[str],
     db_table_name: str,
-    data_timestamps: pd.Timestamp,
+    data_timestamps: pd.DataFrame,,
     data_manager_config: dict[str, Any],
 ) -> None:
     """
@@ -215,7 +215,7 @@ def get_data_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     """
     Get the current timestamp from the dataframe.
     """
-    return pd.DataFrame(df["Timestamps"].values, columns=["Timestamps"])
+    return df[["Timestamps"]].copy()
 ```
 
 ### Add the node after column renaming

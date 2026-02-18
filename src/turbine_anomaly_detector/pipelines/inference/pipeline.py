@@ -21,7 +21,11 @@ def create_pipeline(**kwargs) -> Pipeline:
             ),
             node(
                 func=predict,
-                inputs=["features_data", "champion_model"],
+                inputs=[
+                    "features_data",
+                    "champion_model",
+                    "params:inference_pipeline.predictions_column_name",
+                ],
                 outputs="predictions",
             ),
             node(

@@ -125,7 +125,7 @@ def register_pipelines() -> dict[str, Pipeline]:
 def get_retraining_trigger(
     wasserstein_distance: float,
     threshold: float,
-) -> bool:
+) -> int:
     """
     Determine if retraining is needed based on Wasserstein distance.
     """

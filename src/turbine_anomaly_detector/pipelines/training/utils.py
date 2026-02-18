@@ -17,8 +17,8 @@ SEED = 42
 
 def objective(
     trial: optuna.Trial,
-    x_train: np.ndarray,
-    y_train: np.ndarray,
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
     params: dict[str, Any],
 ) -> float:
     """
@@ -101,7 +101,7 @@ def eval_model(  # noqa: PLR0913
 ) -> dict[str, Any]:
     """
     Evaluate a time series model using TimeSeriesSplit cross-validation
-    on the training set, then refit on the full train data and evaluate on test.
+    on the training set, then refit on the full train data
 
     Parameters
     ----------

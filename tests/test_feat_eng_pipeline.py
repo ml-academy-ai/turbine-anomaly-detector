@@ -22,6 +22,6 @@ def test_remove_diff_outliers_one_column(dataset_with_outliers):
         dataset_with_outliers,
         diff_thresholds={"power": 30},
     )
-    assert result.notna().all().all()  # make sure no NaN values are introduced
+    assert result.notna().values.all()  # make sure no NaN values are introduced
     assert result["power"].iloc[5] != OUTLIER_HIGH  # make sure the outlier is removed
     assert result["power"].iloc[10] != OUTLIER_LOW  # make sure the outlier is removed

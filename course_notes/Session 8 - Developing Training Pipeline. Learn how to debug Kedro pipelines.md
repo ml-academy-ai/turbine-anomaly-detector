@@ -343,8 +343,21 @@ sampled_model_params = sample_optuna_params(
  )
 ```
 
+### We see that we need to add `params` as the input to the `objective` function:
+```python
+def objective(
+    trial: optuna.Trial,
+    x_train: np.ndarray, 
+    y_train: np.ndarray,
+    x_test: np.ndarray, 
+    y_test: np.ndarray,
+    params: dict[str, Any]
+) -> float:
+```
+
 ### Implementation of `eval_model`
 Now, we have `sampled_parameters ` that we can pass to the `eval_model` which we will also modify.
+In the new version, we do not need `x_test` and `y_test`, because we will not evaluate on it.
 ```python
 def eval_model(
     x_train: pd.DataFrame,
@@ -356,7 +369,7 @@ def eval_model(
 ) -> dict[str, Any]:
     """
     Evaluate a time series model using TimeSeriesSplit cross-validation
-    on the training set, then refit on the full train data and evaluate on test.
+    on the training set, then refit on the full train.
 
     Parameters
     ----------
@@ -500,6 +513,16 @@ eval_results = eval_model(
 return eval_results["cv_mape"]
 ```
 
+### We also see that we need to change the input of the objective.
+- especially typings because actually `evals_model` expect dataframe and series
+```python
+def objective(
+    trial: optuna.Trial,
+    x_train: pd.DataFrame,
+    y_train: pd.Series,
+    params: dict[str, Any],
+) -> float:
+```
 
 ### Then we can add the node
 ```python

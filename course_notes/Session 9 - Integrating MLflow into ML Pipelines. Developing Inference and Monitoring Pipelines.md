@@ -447,7 +447,7 @@ kedro run --pipeline=inference
 
 ### Add `predict` node
 ```python
-def predict(features_data: pd.DataFrame, champion_model: Any) -> pd.DataFrame:
+def predict(features_data: pd.DataFrame, champion_model: Any, predictions_column_name: list[str]) -> pd.DataFrame:
     """
     Make predictions using the champion model on new data.
 
@@ -458,16 +458,22 @@ def predict(features_data: pd.DataFrame, champion_model: Any) -> pd.DataFrame:
         training data (excluding the target column).
     champion_model : Any
         Loaded champion model (MLflow pyfunc model) that has a `predict` method.
-
+    predictions_column_name: str
+        Name of the predictions column
     Returns
     -------
     pd.Series
         Predicted target values for the input features.
     """
     predictions = champion_model.predict(features_data)
-    return pd.DataFrame(predictions, columns=["predictions"])
+    return pd.DataFrame(predictions, columns=predictions_column_name)
 ```
 
+### Add predict column name to the config
+```yaml
+  batch_size: 100
+  predictions_column_name: [predict_power]
+```
 ### Add to the pipeline
 ```python
 from kedro.pipeline import Pipeline, node
@@ -483,10 +489,14 @@ def create_pipeline(**kwargs) -> Pipeline:
             outputs="champion_model",
         ),
         node(
-            func=predict,
-            inputs=["features_data", "champion_model"],
-            outputs="predictions",
-        ),
+                func=predict,
+                inputs=[
+                    "features_data",
+                    "champion_model",
+                    "params:inference_pipeline.predictions_column_name",
+                ],
+                outputs="predictions",
+            ),
     ])
 ```
 
@@ -552,6 +562,7 @@ inference_pipeline:
   batch_size: 100
   rolling_window: 5
   anomaly_error_type: mape
+  predictions_column_name: [predict_power]
 ```
 
 ### Add Node to the pipeline
@@ -582,6 +593,7 @@ inference_pipeline:
   rolling_window: 5
   anomaly_error_type: mape
   anomaly_threshold: 9.5 # in percentage
+  predictions_column_name: [predict_power]
 ```
 
 ### Add Node to the Pipeline

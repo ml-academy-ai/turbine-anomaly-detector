@@ -112,7 +112,7 @@ def test_remove_diff_outliers_one_column(dataset_with_outliers):
         dataset_with_outliers,
         diff_thresholds={"power": 30},
     )
-    assert result.notna().all().all() # make sure no NaN values are introduced
+    assert result.notna().values.all() # make sure no NaN values are introduced
     assert result["power"].iloc[5] != OUTLIER_HIGH  # make sure the outlier is removed
     assert result["power"].iloc[10] != OUTLIER_LOW # make sure the outlier is removed
 
@@ -188,7 +188,7 @@ uv add ty
 
 Run:
 ```bash
-ty check
+ty check .
 ```
 
 ### Step 3: Configure ty
@@ -210,8 +210,66 @@ rules = { "possibly-missing-attribute" = "ignore" }
 
 This ignores MLflow's dynamic attribute access that type checkers can't understand.
 
+### For pandas column problem, just add `# type: ignore`
 
-### For now, we will ignore the typing errors because it would take too much time to resolve:
+### Introduce some typing errors, for instance, `src/turbine/monitoring/nodes`:
+ - Change int ---> bool
+```python
+def get_retraining_trigger(
+    wasserstein_distance: float,
+    threshold: float,
+) -> int:
+    """
+    Determine if retraining is needed based on Wasserstein distance.
+    """
+    if wasserstein_distance > threshold:
+        return 1
+    else:
+        return 0
+```
+### Say typings are especially helpful for Pandas and numpy array catches, or Returns.
+- Go to `src/turbine/pipelines/feature_eng/nodes`
+```python
+def remove_diff_outliers(
+    df: pd.DataFrame, diff_thresholds: dict[str, float]
+) -> pd.DataFrame:
+    """
+    Remove outliers based on absolute first-order diff and forward-fill the gaps.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe.
+    diff_thresholds : dict[str, float]
+        Dictionary of column names and their corresponding absolute diff thresholds.
+
+    Returns
+    -------
+    df_clean : pd.DataFrame
+        Cleaned dataframe with forward fill.
+    """
+    df_clean = df.copy()
+
+    for col, threshold in diff_thresholds.items():
+        # 1. Compute absolute diff
+        diff_vals = df_clean[col].diff(1).abs()
+
+        # 2. Outlier mask
+        outlier_mask = diff_vals > threshold
+        outlier_idx = df_clean.index[outlier_mask]
+
+        # 3. Remove outliers
+        df_clean.loc[outlier_idx, col] = np.nan
+
+        # 4. Forward fill (and backfill if needed)
+        df_clean[col] = df_clean[col].ffill().bfill()
+
+    return df_clean
+```
+- Move `df_clean` under the `for-loop` and run inference pipeline. It runs in both cases.
+- However, if we run `ty check .`
+- Change back the `return` statement
+
+### We can ignore the typing errors, if we want
 ```toml
 [tool.ty.rules]
 invalid-argument-type = "ignore"
@@ -323,4 +381,5 @@ Now pre-commit will:
 - Run ruff (linting and formatting)
 - Run ty (type checking)
 - All automatically before each commit
+
 ---

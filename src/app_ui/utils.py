@@ -1,5 +1,4 @@
 import copy
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -226,13 +225,11 @@ def sync_xaxis(relayout_data, current_figure):
 
 def get_model_info_by_alias(
     alias: str,
-    mlflow_tracking_uri: str | None = None,
-    model_name: str | None = None,
+    mlflow_tracking_uri: str,
+    model_name: str,
 ) -> dict | None:
     """Return basic info + test MAE/MAPE for a model version resolved by alias."""
     # 1) Resolve tracking URI (if not provided, uses the local mlflow server)
-    if mlflow_tracking_uri is None:
-        mlflow_tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:8080")
 
     mlflow.set_tracking_uri(mlflow_tracking_uri)
     client = MlflowClient()

@@ -43,7 +43,7 @@ def get_wasserstein_distance_1d(
 def get_retraining_trigger(
     wasserstein_distance: float,
     threshold: float,
-) -> bool:
+) -> int:
     """
     Determine if retraining is needed based on Wasserstein distance.
     """

@@ -53,7 +53,7 @@ def remove_diff_outliers(
         # 4. Forward fill (and backfill if needed)
         df_clean[col] = df_clean[col].ffill().bfill()
 
-        return df_clean
+    return df_clean
 
 
 def smooth_signal(
@@ -201,7 +201,7 @@ def get_features_and_target(
     Get the features and target from the dataframe.
     """
     x = df.drop(columns=target).copy()
-    y = pd.DataFrame(df[target].copy(), columns=[target])
+    y = df[[target]].copy()
     return x, y
 
 
@@ -256,4 +256,4 @@ def get_data_timestamps(df: pd.DataFrame) -> pd.DataFrame:
     """
     Get the current timestamp from the dataframe.
     """
-    return pd.DataFrame(df["Timestamps"].values, columns=["Timestamps"])
+    return df[["Timestamps"]].copy()

@@ -110,11 +110,11 @@ include = ["src", "tests", "entrypoints"]
 include = ["**/pipelines/**"]
 rules = { "possibly-missing-attribute" = "ignore" }
 
-[tool.ty.rules]
-invalid-argument-type = "ignore"
-invalid-return-type = "ignore"
-not-subscriptable = "ignore"
-unresolved-attribute = "ignore"
+# [tool.ty.rules]
+# invalid-argument-type = "ignore"
+# invalid-return-type = "ignore"
+# not-subscriptable = "ignore"
+# unresolved-attribute = "ignore"
 
 
 [tool.ruff.lint]
