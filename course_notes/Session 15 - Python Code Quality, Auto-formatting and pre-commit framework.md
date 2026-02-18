@@ -383,3 +383,41 @@ Now pre-commit will:
 - All automatically before each commit
 
 ---
+
+### It's a good practice to clear Notebook outputs, but we can forget that. We can use nbstripout
+- Add nbstripout to the environment
+```bash
+uv add nbstripout
+```
+- Add to the pre-commit config
+```yaml
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.15.1
+  hooks:
+    # Run the linter.
+    - id: ruff-check
+      types_or: [ python, pyi ]
+      args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format
+      types_or: [ python, pyi ]
+
+- repo: local
+  hooks:
+    - id: ty-check
+      name: ty check
+      entry: uv run ty check src tests
+      language: system
+      types_or: [python, pyi]
+      exclude: ^notebooks/
+      pass_filenames: false
+      
+- repo: https://github.com/kynan/nbstripout
+  rev: 0.7.1
+  hooks:
+      - id: nbstripout
+```
+
+### Try to run Notebook, keep Notebook open, run commit, it should strip out the cell outputs.
