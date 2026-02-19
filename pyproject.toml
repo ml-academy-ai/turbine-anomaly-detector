@@ -117,6 +117,12 @@ rules = { "possibly-missing-attribute" = "ignore" }
 # not-subscriptable = "ignore"
 # unresolved-attribute = "ignore"
 
+[tool.ruff.lint.isort]
+# Force mlflow to be grouped with the other third-party libraries
+known-third-party = ["mlflow"]
+# Ensures a consistent category order
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
 
 [tool.ruff.lint]
 select = [
