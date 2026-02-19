@@ -12,7 +12,7 @@ def sample_df():
 
 
 @pytest.fixture
-def dataset_with_outliers(OUTLIER_HIGH, OUTLIER_LOW):
+def dataset_with_outliers():
     """Small synthetic dataset with outliers in one column only."""
     n = 15
     timestamps = pd.date_range("2024-01-01", periods=n, freq="h")
