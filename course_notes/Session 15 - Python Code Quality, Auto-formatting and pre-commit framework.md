@@ -299,7 +299,7 @@ Create a file named `.pre-commit-config.yaml`
 
 ### Step 3: Configure Ruff for Pre-commit
 
-#### Google "pre-commit ruff" and take the file from the git repo of ruff-pre-commit.
+### Google "pre-commit ruff" and take the file from the git repo of ruff-pre-commit.
 
 It's better to use the ruff version as in the uv.lock file, because this version will then later
 be used in the CI pipeline.
@@ -309,7 +309,7 @@ We should get similar to:
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
-  rev: v0.12.12 # same as in uv.lock
+  rev: v0.12.12 # we specify the same version as in uv.lock, but can be different
   hooks:
     # Run the linter.
     - id: ruff-check
@@ -320,7 +320,9 @@ repos:
       types_or: [ python, pyi ]
 ```
 
-#### Add ty to pre-commit
+### Explain how does it work with the slide `How pre-commit Git hook works? (ruff example)` 
+
+### Add ty to pre-commit
 Instead of the repo version, we will use this:
 ```yaml
 - repo: local
@@ -394,7 +396,7 @@ uv add nbstripout
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
-  rev: v0.15.1
+  rev: v0.12.12 # we specify the same version as in uv.lock, but can be different
   hooks:
     # Run the linter.
     - id: ruff-check

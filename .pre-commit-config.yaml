@@ -1,7 +1,7 @@
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
-  rev: v0.12.12 # same as in uv.lock
+  rev: v0.12.12 # we specify the same version as in uv.lock, but can be different
   hooks:
     # Run the linter.
     - id: ruff-check
