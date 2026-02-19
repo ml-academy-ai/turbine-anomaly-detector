@@ -6,12 +6,12 @@ import joblib
 import optuna
 import pandas as pd
 from catboost import CatBoostRegressor
-from mlflow.models.signature import infer_signature
-from mlflow.tracking import MlflowClient
 from sklearn.ensemble import RandomForestRegressor as RF
 from sklearn.preprocessing import StandardScaler
 
 import mlflow
+from mlflow.models.signature import infer_signature
+from mlflow.tracking import MlflowClient
 from turbine_anomaly_detector.common.metrics import compute_metrics
 from turbine_anomaly_detector.common.mlflow_utils import load_model_by_alias
 
