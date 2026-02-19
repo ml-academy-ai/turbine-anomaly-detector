@@ -301,15 +301,15 @@ Create a file named `.pre-commit-config.yaml`
 
 #### Google "pre-commit ruff" and take the file from the git repo of ruff-pre-commit.
 
-**What is nice:** The pre-commit-config is already compatible with `pyproject.toml`, 
-so we can keep our setup and just add vanilla config for pre-commit.
+It's better to use the ruff version as in the uv.lock file, because this version will then later
+be used in the CI pipeline.
 
 We should get similar to:
 ```yaml
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
-  rev: v0.15.1
+  rev: v0.12.12 # same as in uv.lock
   hooks:
     # Run the linter.
     - id: ruff-check
@@ -320,7 +320,7 @@ repos:
       types_or: [ python, pyi ]
 ```
 
-#### Google "pre-commit ty" and take the file from the git repo of ruff-pre-commit.
+#### Add ty to pre-commit
 Instead of the repo version, we will use this:
 ```yaml
 - repo: local
