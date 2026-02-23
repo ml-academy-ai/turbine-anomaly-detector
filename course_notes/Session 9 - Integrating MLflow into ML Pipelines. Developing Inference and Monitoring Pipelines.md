@@ -199,7 +199,7 @@ node(
 **Tell about model registry stages and migration from them to aliases and tags:**
 https://github.com/mlflow/mlflow/issues/10336
 ```python
-def register_model(model_uri: str, mlflow_params: dict[str, Any]) -> None:
+def register_model(model_uri: str, mlflow_params: dict[str, Any]) -> str:
     """
     Register a model in MLflow and add candidate alias.
 
@@ -232,7 +232,7 @@ def register_model(model_uri: str, mlflow_params: dict[str, Any]) -> None:
         alias=mlflow_params["model_aliases"]["candidate"], 
         version=version
     )
-    return None
+    return version
 ```
 ### To run, we need to add aliases to the config file
 ```yaml
@@ -250,7 +250,7 @@ mlflow:
 node(
    func=register_model,
    inputs=["mlflow_model_uri", "params:mlflow"],
-   outputs=None,
+   outputs='model_version',
 ),
 ```
 Now, we can see the model registered as `Challenger` and ready to become a `Champion` and be used
@@ -299,7 +299,8 @@ def validate_challenger(
     x_test: pd.DataFrame,
     y_test: pd.Series,
     training_results: dict[str, Any],
-    mlflow_params: dict[str, Any]
+    mlflow_params: dict[str, Any],
+    model_version: str
 ) -> None:
     """
     Validates candidate model against production and promote if better (lower MAPE).

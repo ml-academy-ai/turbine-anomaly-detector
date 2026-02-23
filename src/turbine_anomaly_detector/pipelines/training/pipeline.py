@@ -48,7 +48,7 @@ def create_pipeline(**kwargs) -> Pipeline:
             node(
                 func=register_model,
                 inputs=["mlflow_model_uri", "params:mlflow"],
-                outputs=None,
+                outputs="model_version",
             ),
             node(
                 func=validate_challenger,
@@ -57,6 +57,7 @@ def create_pipeline(**kwargs) -> Pipeline:
                     "y_test",
                     "training_results",
                     "params:mlflow",
+                    "model_version",
                 ],
                 outputs=None,
             ),

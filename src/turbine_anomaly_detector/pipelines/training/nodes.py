@@ -259,7 +259,7 @@ def log_to_mlflow(
     return model_info.model_uri
 
 
-def register_model(model_uri: str, mlflow_params: dict[str, Any]) -> None:
+def register_model(model_uri: str, mlflow_params: dict[str, Any]) -> str:
     """
     Register a model in MLflow and add candidate alias.
 
@@ -292,6 +292,7 @@ def register_model(model_uri: str, mlflow_params: dict[str, Any]) -> None:
         alias=mlflow_params["model_aliases"]["candidate"],
         version=version,
     )
+    return version
 
 
 def validate_challenger(
@@ -299,6 +300,7 @@ def validate_challenger(
     y_test: pd.Series,
     training_results: dict[str, Any],
     mlflow_params: dict[str, Any],
+    model_version: str,
 ) -> None:
     """
     Validates candidate model against production and promote if better (lower MAPE).
