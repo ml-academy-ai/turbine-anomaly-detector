@@ -198,6 +198,24 @@ class DataManager:
                 f"ON {self.config['anomalies_table_name']} (Timestamps)"
             )
 
+    def init_retraining_trigger_db_table(self) -> None:
+        """
+        Create retraining trigger table and timestamp index if they don't exist.
+        """
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            schema_sql = self._build_schema_sql(
+                self.config["retraining_trigger_table_schema"]
+            )
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.config['retraining_trigger_table_name']} ({schema_sql})"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
+                f"ON {self.config['retraining_trigger_table_name']} (Timestamps)"
+            )
+
     def get_last_n_points(self, n: int, table_name: str) -> pd.DataFrame:
         """
         Retrieve the last N data points from the specified table.

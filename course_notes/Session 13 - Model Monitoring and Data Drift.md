@@ -3,6 +3,8 @@
 ### Introduce Approach to Monitoring and Re-training in the Project including Monitoring and Re-training Logic Slide
 ### Go through `06 - Model Monitoring Notebook`
 
+### We will implement the simplified version of re-training
+
 ### Create a Node in the Monitoring Pipeline Directory
 ```python
 import numpy as np
@@ -120,19 +122,43 @@ def register_pipelines() -> dict[str, Pipeline]:
     }
 ```
 
-### Add this node to the pipeline:
+### Create a re-training trigger node:
 ```python
 def get_retraining_trigger(
     wasserstein_distance: float,
     threshold: float,
-) -> int:
+    monitored_data: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Determine if retraining is needed based on Wasserstein distance.
     """
+    last_timestamp = monitored_data["Timestamps"].iloc[-1]
     if wasserstein_distance > threshold:
-        return 1
+        retraining_trigger = 1
     else:
-        return 0
+        retraining_trigger = 0
+    # Create a DataFrame with the retraining trigger information
+    retraining_trigger_df = pd.DataFrame(
+        {
+            "Timestamps": [last_timestamp],
+            "wasserstein_distance": [wasserstein_distance],
+            "retraining_trigger": [retraining_trigger],
+        }
+    )
+    return retraining_trigger_df
+```
+
+### Add the node to the pipeline
+```python
+node(
+    func=get_retraining_trigger,
+    inputs=[
+        "wasserstein_distance",
+        "params:monitoring_pipeline.wasserstein_threshold",
+        "monitored_data",
+    ],
+    outputs="retraining_trigger_df",
+),
 ```
 
 ### Add threshold to the config file:
@@ -140,6 +166,112 @@ def get_retraining_trigger(
 monitoring_pipeline:
   monitored_feature: "GenRPM"
   wasserstein_threshold: 315
+```
+
+### Now, we need to store this in the database.
+
+### Let's create a table for storing this data
+```yaml
+retraining_trigger_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+      not_null: true
+    - name: wasserstein_distance
+      type: REAL
+      not_null: true
+    - name: retraining_trigger
+      type: INTEGER
+      not_null: true
+```
+
+### Add a new table name to the data manager config
+```yaml
+data_manager:
+  history_data_folder: data/01_raw
+  history_data_filename: df_train_test.parquet
+  inference_data_folder: data/01_raw
+  inference_data_filename: df_prod.parquet
+  sqlite_db_path: data/sqlite/app.db
+  raw_data_table_name: raw_data
+  predictions_table_name: predictions
+  errors_table_name: errors
+  anomalies_table_name: anomalies
+  streaming_frequency: 10
+  retraining_trigger_table_name: retraining_trigger # <-------
+```
+
+### Create a method to initialize this table
+```python
+def init_retraining_trigger_db_table(self) -> None:
+        """
+        Create retraining trigger table and timestamp index if they don't exist.
+        """
+        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            schema_sql = self._build_schema_sql(self.config["retraining_trigger_table_schema"])
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.config['retraining_trigger_table_name']} ({schema_sql})"
+            )
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_timestamps "
+                f"ON {self.config['retraining_trigger_table_name']} (Timestamps)"
+            )
+```
+
+### Create a node to save the trigger to the database
+```python
+def save_retraining_trigger_to_db(
+    retraining_trigger_df: pd.DataFrame,
+    data_manager_config: dict[str, Any],
+    db_table_name: str,
+) -> None:
+    """
+    Save the retraining trigger information to the database.
+    """
+    # Initialize DataManager
+    data_manager = DataManager(data_manager_config)
+    # Save to retraining trigger table
+    data_manager.insert_data_to_db(new_data=retraining_trigger_df, table_name=db_table_name)
+```
+
+###  Add node to the Pipeline
+```python
+node(
+    func=save_retraining_trigger_to_db,
+    inputs=[
+        "retraining_trigger_df",
+        "params:data_manager",
+        "params:data_manager.retraining_trigger_table_name",
+    ],
+    outputs=None,
+),
+```
+
+### We need to initialize the re-training trigger in the database.
+- We can do that by adding init_table call in the data app entrypoint.
+- Go to `entrypoints/app_stread_data`
+- Add:
+```python
+while True:
+    # Clean database by reinitializing the raw data table
+    data_manager.init_raw_db_table()
+    # Initialize other tables
+    data_manager.init_predictions_db_table()
+    data_manager.init_errors_db_table()
+    data_manager.init_anomalies_db_table()
+    data_manager.init_retraining_trigger_db_table()
+```
+
+### Run the script
+```bash
+python `entrypoints/app_stream_data.py`
+```
+
+### Run Kedro pipeline
+```bash
+kedro run --pipeline=monitoring
 ```
 
 ### We will use this trigger to re-train the pipeline when we introduce orchestration

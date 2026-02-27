@@ -1,5 +1,9 @@
+from typing import Any
+
 import numpy as np
 import pandas as pd
+
+from app_data_manager.data_manager import DataManager
 
 
 def get_wasserstein_distance_1d(
@@ -43,11 +47,38 @@ def get_wasserstein_distance_1d(
 def get_retraining_trigger(
     wasserstein_distance: float,
     threshold: float,
-) -> int:
+    monitored_data: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Determine if retraining is needed based on Wasserstein distance.
     """
+    last_timestamp = monitored_data["Timestamps"].iloc[-1]
     if wasserstein_distance > threshold:
-        return 1
+        retraining_trigger = 1
     else:
-        return 0
+        retraining_trigger = 0
+    # Create a DataFrame with the retraining trigger information
+    retraining_trigger_df = pd.DataFrame(
+        {
+            "Timestamps": [last_timestamp],
+            "wasserstein_distance": [wasserstein_distance],
+            "retraining_trigger": [retraining_trigger],
+        }
+    )
+    return retraining_trigger_df
+
+
+def save_retraining_trigger_to_db(
+    retraining_trigger_df: pd.DataFrame,
+    data_manager_config: dict[str, Any],
+    db_table_name: str,
+) -> None:
+    """
+    Save the retraining trigger information to the database.
+    """
+    # Initialize DataManager
+    data_manager = DataManager(data_manager_config)
+    # Save to retraining trigger table
+    data_manager.insert_data_to_db(
+        new_data=retraining_trigger_df, table_name=db_table_name
+    )

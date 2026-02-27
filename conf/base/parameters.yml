@@ -145,6 +145,7 @@ data_manager:
   errors_table_name: errors
   anomalies_table_name: anomalies
   streaming_frequency: 10
+  retraining_trigger_table_name: retraining_trigger
   raw_data_table_schema:
     - name: Timestamps
       type: TEXT
@@ -202,3 +203,15 @@ data_manager:
     - name: anomaly
       type: REAL
       not_null: true
+  retraining_trigger_table_schema:
+    - name: Timestamps
+      type: TEXT
+      primary_key: true
+      not_null: true
+    - name: wasserstein_distance
+      type: REAL
+      not_null: true
+    - name: retraining_trigger
+      type: INTEGER
+      not_null: true
+  

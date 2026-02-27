@@ -5,7 +5,11 @@ from turbine_anomaly_detector.pipelines.feature_eng.nodes import (
     load_training_data_from_db,
 )
 
-from .nodes import get_retraining_trigger, get_wasserstein_distance_1d
+from .nodes import (
+    get_retraining_trigger,
+    get_wasserstein_distance_1d,
+    save_retraining_trigger_to_db,
+)
 
 
 def create_monitoring_pipeline():
@@ -43,8 +47,18 @@ def create_monitoring_pipeline():
                 inputs=[
                     "wasserstein_distance",
                     "params:monitoring_pipeline.wasserstein_threshold",
+                    "monitored_data",
                 ],
-                outputs="retraining_trigger",
+                outputs="retraining_trigger_df",
+            ),
+            node(
+                func=save_retraining_trigger_to_db,
+                inputs=[
+                    "retraining_trigger_df",
+                    "params:data_manager",
+                    "params:data_manager.retraining_trigger_table_name",
+                ],
+                outputs=None,
             ),
         ]
     )
