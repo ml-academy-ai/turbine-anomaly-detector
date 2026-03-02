@@ -82,6 +82,7 @@ training_pipeline:
   start_timestamp: '2007-07-29 03:10:00'
   test_fraction: 0.2 # 20% of the data for testing
   n_folds: 3
+  train_check_frequency: 1
 
   optuna_search:
     model: 'CatBoost'
@@ -125,7 +126,8 @@ inference_pipeline:
 
 monitoring_pipeline:
   monitored_feature: "GenRPM"
-  wasserstein_threshold: 315
+  wasserstein_threshold: 10
+  monitoring_frequency: 1
 
 mlflow:
   prod_experiment_name: prod_model_training

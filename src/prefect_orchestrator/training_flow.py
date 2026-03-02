@@ -10,7 +10,7 @@ from kedro.framework.project import configure_project
 from kedro.framework.session import KedroSession
 from kedro.framework.startup import bootstrap_project
 from mlflow.tracking import MlflowClient
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
 
 from app_data_manager.data_manager import DataManager
 from app_data_manager.utils import read_config
@@ -22,16 +22,20 @@ config = read_config(os.path.join(project_root, "conf", "base", "parameters.yml"
 config_data_manager = config["data_manager"]
 config_mlflow = config["mlflow"]
 
+os.environ["PREFECT_LOGGING_LEVEL"] = "INFO"
+
 
 @task(name="load_retraining_trigger_data")
 def load_retraining_trigger_data(config_data_manager: dict[str, Any]) -> pd.DataFrame:
     """
     Load the last n points from the retraining trigger table.
     """
+    logger = get_run_logger()
     data_manager = DataManager(config_data_manager)
     retraining_trigger_df = data_manager.get_last_n_points(
         n=10, table_name=config_data_manager["retraining_trigger_table_name"]
     )
+    logger.info(f"Loaded retraining trigger data: {retraining_trigger_df}")
     # print(retraining_trigger_df)
     return retraining_trigger_df
 
@@ -39,6 +43,8 @@ def load_retraining_trigger_data(config_data_manager: dict[str, Any]) -> pd.Data
 @task(name="run_training_pipeline")
 def run_training_pipeline(env: str = "local", pipeline_name: str = "training"):
     """Prefect task to run the Kedro training pipeline."""
+    logger = get_run_logger()
+    logger.info("Running training pipeline")
     # Extract package name from pyproject.toml
     with open(project_root / "pyproject.toml", "rb") as f:
         package_name = tomllib.load(f)["tool"]["kedro"]["package_name"]
@@ -48,6 +54,8 @@ def run_training_pipeline(env: str = "local", pipeline_name: str = "training"):
 
     with KedroSession.create(project_path=project_root, env=env) as session:
         session.run(pipeline_name=pipeline_name)
+
+    logger.info("Training pipeline completed")
 
 
 def get_last_training_timestamp() -> datetime | None:
@@ -94,16 +102,17 @@ def should_retrain(retraining_trigger_df: pd.DataFrame) -> bool:
     """
     Check if the retraining trigger df is empty.
     """
+    logger = get_run_logger()
 
     # Case 1: No previous training runs found in MLflow → run initial training
     last_training_timestamp = get_last_training_timestamp()
     if last_training_timestamp is None:
-        # print("No previous training runs found - running initial training")
+        logger.info("No previous training runs found - running initial training")
         return True
 
     # Case 2: Empty re-train table → first run, train model
     if retraining_trigger_df.empty:
-        # print("No retraining triggers found - running initial training")
+        logger.info("No retraining triggers found - running initial training")
         return True
 
     # Get the LATEST row (last one after chronological ordering)
@@ -113,24 +122,34 @@ def should_retrain(retraining_trigger_df: pd.DataFrame) -> bool:
 
     # Case 3: No drift detected in the last trigger → don't train
     if trigger_value == 0:
-        # print("No data drift detected - skipping training")
+        logger.info("No data drift detected - skipping training")
         return False
 
-    if trigger_timestamp > last_training_timestamp:
-        # print("Data drift detected - running training")
-        return True
+    if trigger_value == 1:
+        if trigger_timestamp > last_training_timestamp:
+            logger.info("Data drift detected - running training")
+            return True
+        else:
+            logger.info(
+                "Trigger timestamp is older than last training timestamp - skipping training"
+            )
+            return False
 
+    logger.info("No retraining triggers found - skipping training")
     return False
 
 
 @flow(name="training_flow", log_prints=True)
 def training_flow(config_data_manager: dict[str, Any]):
+    logger = get_run_logger()
+    logger.info("Starting training flow")
     retraining_trigger_df = load_retraining_trigger_data(config_data_manager)
     retrain_flag = should_retrain(retraining_trigger_df)
     if retrain_flag:
+        logger.info("Retraining flag is True - running training pipeline")
         run_training_pipeline(env="local", pipeline_name="training")
     else:
-        # print("No data drift detected - skipping training")
+        logger.info("Retraining flag is False - skipping training pipeline")
         pass
 
 
