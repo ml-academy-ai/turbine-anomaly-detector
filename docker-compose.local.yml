@@ -1,6 +1,8 @@
 services:
   app-stream-data:
-    image: ${DOCKERHUB_USERNAME}/turbine-anomaly:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["python", "entrypoints/app_stream_data.py"]
     volumes:
       - app_data:/app/data
@@ -9,7 +11,9 @@ services:
       - PYTHONUNBUFFERED=1
 
   mlflow_server:
-    image: ${DOCKERHUB_USERNAME}/turbine-anomaly:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: >
       sh -c "mlflow server
       --host 0.0.0.0
@@ -27,7 +31,9 @@ services:
       - ./conf:/app/conf
 
   app-ml-train:
-    image: ${DOCKERHUB_USERNAME}/turbine-anomaly:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["python", "entrypoints/training.py"]
     volumes:
       - mlflow_data:/app/mlflow
@@ -40,7 +46,9 @@ services:
       - app-stream-data
 
   app-ml-inference:
-    image: ${DOCKERHUB_USERNAME}/turbine-anomaly:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["python", "entrypoints/inference_real_time.py"]
     volumes:
       - mlflow_data:/app/mlflow
@@ -53,7 +61,9 @@ services:
         condition: service_completed_successfully
 
   app-ui:
-    image: ${DOCKERHUB_USERNAME}/turbine-anomaly:latest
+    build:
+      context: .                    # Build context is the project root
+      dockerfile: Dockerfile        # Use the shared Dockerfile
     command: ["python", "entrypoints/app_ui.py"]  # Run the Dash UI app
     ports:
       - "8050:8050"                 # Expose port 8050 for web access
@@ -72,7 +82,9 @@ services:
       - app-stream-data
 
   kedro-viz:
-    image: ${DOCKERHUB_USERNAME}/turbine-anomaly:latest
+    build:
+      context: .                    # Build context is the project root
+      dockerfile: Dockerfile        # Use the shared Dockerfile
     command: ["kedro", "viz", "run", "--host", "0.0.0.0", "--port", "4141", "--no-browser"]
     ports:
       - "4141:4141"                 # Expose port 4141 for Kedro Viz UI

@@ -23,7 +23,7 @@
 - `Docker Image vs Container`
 - `What is Docker Registry`
 - `Dockerfile - what is it and what’s inside`
-- 
+
 ### Create Dockerfile and add this:
 ```dockerfile
 FROM python:3.12-slim
@@ -225,10 +225,10 @@ app-ui:
       - ./conf:/app/conf
     environment:
       - KEDRO_ENV=local
-      - MLFLOW_TRACKING_URI=http://mlflow:8080
-      - MLFLOW_UI_URI=http://mlflow:8080
+      - MLFLOW_TRACKING_URI=http://mlflow_server:8080
+      - MLFLOW_UI_URI=${MLFLOW_UI_URI:-http://localhost:8080}
       - DEBUG=False
-      - KEDRO_VIZ_URI=http://localhost:4141
+      - KEDRO_VIZ_URI=${KEDRO_VIZ_URI:-http://localhost:4141}
     depends_on:
       - mlflow_server
       - app-stream-data
