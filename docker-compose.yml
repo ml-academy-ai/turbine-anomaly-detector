@@ -3,7 +3,7 @@ services:
     image: ${DOCKERHUB_USERNAME}/turbine-anomaly:latest
     command: ["python", "entrypoints/app_stream_data.py"]
     volumes:
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - PYTHONUNBUFFERED=1
@@ -23,7 +23,7 @@ services:
       - "8080:8080"
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
 
   app-ml-train:
@@ -31,7 +31,7 @@ services:
     command: ["python", "entrypoints/training.py"]
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow_server:8080
@@ -44,7 +44,7 @@ services:
     command: ["python", "entrypoints/inference_real_time.py"]
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow_server:8080
@@ -59,7 +59,7 @@ services:
       - "8050:8050"                 # Expose port 8050 for web access
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - KEDRO_ENV=local
@@ -81,5 +81,4 @@ services:
           condition: service_completed_successfully
       
 volumes:
-  app_data:
   mlflow_data:

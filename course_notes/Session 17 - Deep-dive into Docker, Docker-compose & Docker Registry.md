@@ -111,7 +111,7 @@ services:
       dockerfile: Dockerfile
     command: ["python", "entrypoints/app_stream_data.py"]
     volumes:
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf # bind mount the configuration files
     environment:
     - PYTHONUNBUFFERED=1 # ensure we see python output in real time
@@ -181,7 +181,7 @@ app-ml-train:
  command: ["python", "entrypoints/training.py"]
  volumes:
    - mlflow_data:/app/mlflow
-   - app_data:/app/data
+   - ./data:/app/data
    - ./conf:/app/conf
  environment:
    - MLFLOW_TRACKING_URI=http://mlflow_server:8080
@@ -201,7 +201,7 @@ app-ml-inference:
     command: ["python", "entrypoints/inference_real_time.py"]
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow_server:8080
@@ -221,7 +221,7 @@ app-ui:
       - "8050:8050"                 # Expose port 8050 for web access
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - KEDRO_ENV=local
@@ -345,7 +345,7 @@ services:
       dockerfile: Dockerfile
     command: ["python", "entrypoints/app_stream_data.py"]
     volumes:
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf # bind mount the configuration files
     environment:
     - PYTHONUNBUFFERED=1 # ensure we see python output in real time
@@ -401,7 +401,6 @@ and
 
 ```yaml
 volumes:
-  app_data:
   mlflow_data:
 ```
 
@@ -415,7 +414,7 @@ app-ml-train:
  command: ["python", "entrypoints/training.py"]
  volumes:
    - mlflow_data:/app/mlflow
-   - app_data:/app/data
+   - ./data:/app/data
    - ./conf:/app/conf
  environment:
    - MLFLOW_TRACKING_URI=http://mlflow_server:8080
@@ -435,7 +434,7 @@ app-ml-inference:
     command: ["python", "entrypoints/inference_real_time.py"]
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow_server:8080
@@ -455,7 +454,7 @@ app-ui:
       - "8050:8050"                 # Expose port 8050 for web access
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - KEDRO_ENV=local
