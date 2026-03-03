@@ -393,7 +393,7 @@ mlflow_server:
    - "8080:8080"
  volumes:
    - mlflow_data:/app/mlflow
-   - app_data:/app/data
+   - ./data:/app/data
    - ./conf:/app/conf
 ```
 

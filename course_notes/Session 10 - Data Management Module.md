@@ -62,28 +62,35 @@ data_manager:
 
 ### Add a method that connects to the database
 ```python
-def _get_connection(self, timeout: int = 30):
+    def _get_connection(self, timeout: int = 30, max_retries: int = 5):
         """
-        Get database connection with Write-Ahead Logging (WAL) mode enabled.
+        Get database connection using SQLite default journal mode (DELETE).
 
-        WAL mode allows multiple readers and one writer simultaneously, improving
-        performance in concurrent scenarios. The timeout prevents indefinite blocking
-        if the database is locked by another process.
+        Retries on DatabaseError (e.g. "file is not a database") to handle the
+        race when app-stream-data resets the DB while other services are reading.
 
         Args:
             timeout: Seconds to wait before raising timeout error (default: 30).
+            max_retries: Number of retries on transient DB errors (default: 5).
 
         Returns:
-            SQLite connection object with WAL mode enabled.
+            SQLite connection object.
         """
-        conn = sq.connect(self.config["sqlite_db_path"], timeout=timeout)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        return conn
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                conn = sq.connect(self.config["sqlite_db_path"], timeout=timeout)
+                return conn
+            except sq.DatabaseError as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    time.sleep(1)
+        raise last_error
 ```
 
 ### Add Schema of the Tables
 ```yaml
-raw_data_table_schema:
+  raw_data_table_schema:
     - name: Timestamps
       type: TEXT
       primary_key: true
@@ -127,6 +134,9 @@ raw_data_table_schema:
       primary_key: true
       not_null: true
     - name: mape
+      type: REAL
+      not_null: true
+    - name: rolling_mape
       type: REAL
       not_null: true
   anomalies_table_schema:
@@ -186,16 +196,27 @@ def init_raw_db_table(self) -> None:
             FileNotFoundError: If historical data parquet file doesn't exist.
             sqlite3.Error: If database operations fail.
         """
-        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.config["sqlite_db_path"]).unlink(missing_ok=True)
+        db_path = Path(self.config["sqlite_db_path"])
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        db_path.unlink(missing_ok=True)
 
-        history_path = Path(self.config["history_data_folder"]) / self.config["history_data_filename"]
+        history_path = (
+            Path(self.config["history_data_folder"])
+            / self.config["history_data_filename"]
+        )
         df = pd.read_parquet(history_path)
 
         with self._get_connection() as conn:
             schema_sql = self._build_schema_sql(self.config["raw_data_table_schema"])
-            conn.execute(f"CREATE TABLE {self.config['raw_data_table_name']} ({schema_sql})")
-            df.to_sql(self.config["raw_data_table_name"], conn, if_exists="append", index=False)
+            conn.execute(
+                f"CREATE TABLE {self.config['raw_data_table_name']} ({schema_sql})"
+            )
+            df.to_sql(
+                self.config["raw_data_table_name"],
+                conn,
+                if_exists="append",
+                index=False,
+            )
 ```
 
 ### Add `app_data_manager/utils.py` the config reader

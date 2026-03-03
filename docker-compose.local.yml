@@ -9,6 +9,7 @@ services:
       - ./conf:/app/conf
     environment:
       - PYTHONUNBUFFERED=1
+    restart: unless-stopped
 
   mlflow_server:
     build:
@@ -50,9 +51,10 @@ services:
       context: .
       dockerfile: Dockerfile
     command: ["python", "entrypoints/inference_real_time.py"]
+    restart: unless-stopped
     volumes:
       - mlflow_data:/app/mlflow
-      - app_data:/app/data
+      - ./data:/app/data
       - ./conf:/app/conf
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow_server:8080
@@ -65,6 +67,7 @@ services:
       context: .                    # Build context is the project root
       dockerfile: Dockerfile        # Use the shared Dockerfile
     command: ["python", "entrypoints/app_ui.py"]  # Run the Dash UI app
+    restart: unless-stopped
     ports:
       - "8050:8050"                 # Expose port 8050 for web access
     volumes:

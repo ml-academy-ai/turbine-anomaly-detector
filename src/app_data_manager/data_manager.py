@@ -1,5 +1,6 @@
 import sqlite3 as sq
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +23,9 @@ class DataManager:
     - Time-series queries (by range or last N points)
     - Idempotent data insertion using UPSERT pattern
 
-    The class uses Write-Ahead Logging (WAL) mode for better concurrency, allowing
-    multiple readers while writes occur. All operations are designed to be safe
-    for production use with proper error handling.
+    Uses SQLite default journal mode (DELETE) for simpler operation across
+    Docker bind mounts. All operations are designed to be safe for production
+    use with proper error handling.
     """
 
     def __init__(self, config: dict[str, Any]):
@@ -60,23 +61,31 @@ class DataManager:
             definitions.append(col_def)
         return ", ".join(definitions)
 
-    def _get_connection(self, timeout: int = 30):
+    def _get_connection(self, timeout: int = 30, max_retries: int = 5) -> sq.Connection:
         """
-        Get database connection with Write-Ahead Logging (WAL) mode enabled.
+        Get database connection using SQLite default journal mode (DELETE).
 
-        WAL mode allows multiple readers and one writer simultaneously, improving
-        performance in concurrent scenarios. The timeout prevents indefinite blocking
-        if the database is locked by another process.
+        Retries on DatabaseError (e.g. "file is not a database") to handle the
+        race when app-stream-data resets the DB while other services are reading.
 
         Args:
             timeout: Seconds to wait before raising timeout error (default: 30).
+            max_retries: Number of retries on transient DB errors (default: 5).
 
         Returns:
-            SQLite connection object with WAL mode enabled.
+            SQLite connection object.
         """
-        conn = sq.connect(self.config["sqlite_db_path"], timeout=timeout)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        return conn
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                conn = sq.connect(self.config["sqlite_db_path"], timeout=timeout)
+                return conn
+            except sq.DatabaseError as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    time.sleep(1)
+        assert last_error is not None
+        raise last_error from last_error
 
     def init_raw_db_table(self) -> None:
         """
@@ -96,8 +105,9 @@ class DataManager:
             FileNotFoundError: If historical data parquet file doesn't exist.
             sqlite3.Error: If database operations fail.
         """
-        Path(self.config["sqlite_db_path"]).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.config["sqlite_db_path"]).unlink(missing_ok=True)
+        db_path = Path(self.config["sqlite_db_path"])
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        db_path.unlink(missing_ok=True)
 
         history_path = (
             Path(self.config["history_data_folder"])

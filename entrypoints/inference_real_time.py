@@ -1,4 +1,6 @@
+import logging
 import os
+import sqlite3
 import sys
 import time
 import tomllib
@@ -45,12 +47,18 @@ def run_inference_real_time(env: str = "local") -> None:
     while True:
         try:
             df = data_manager.get_last_n_points(1, table_name="raw_data")
-            latest_timestamp = df.iloc[-1]["Timestamps"]
+            if df.empty:
+                time.sleep(inference_frequency)
+                continue
 
+            latest_timestamp = df.iloc[-1]["Timestamps"]
             if last_timestamp is None or latest_timestamp > last_timestamp:
                 run_inference_pipeline(env=env)
                 last_timestamp = latest_timestamp
 
+            time.sleep(inference_frequency)
+        except sqlite3.DatabaseError as e:
+            logging.warning("Database temporarily unavailable (retrying): %s", e)
             time.sleep(inference_frequency)
         except Exception as e:
             time.sleep(inference_frequency)
