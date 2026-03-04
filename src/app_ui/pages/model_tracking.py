@@ -64,6 +64,11 @@ layout = dbc.Container(
                     "Click the buttons below to access different sections of the MLflow Tracking UI.",
                     className="mt-intro",
                 ),
+                html.P(
+                    "If you cannot access the MLflow UI from your network, try using a VPN.",
+                    className="mt-intro text-muted",
+                    style={"fontSize": "0.9em"},
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
