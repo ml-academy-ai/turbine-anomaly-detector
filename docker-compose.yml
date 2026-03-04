@@ -26,6 +26,8 @@ services:
       - "*"
       - --cors-allowed-origins
       - "*"
+      - --x-frame-options
+      - SAMEORIGIN
     ports:
       - "8080:8080"
     volumes:
