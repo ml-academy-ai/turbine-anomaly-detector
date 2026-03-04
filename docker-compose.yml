@@ -23,7 +23,7 @@ services:
       - file:///app/mlflow/artifacts
       - --serve-artifacts
       - --allowed-hosts
-      - "*"
+      - "167.71.235.154:*"
       - --cors-allowed-origins
       - "*"
     ports:
