@@ -22,12 +22,10 @@ services:
       - --default-artifact-root
       - file:///app/mlflow/artifacts
       - --serve-artifacts
-      - --allowed-hosts
-      - "*"
-      - --cors-allowed-origins
-      - "*"
-      - --x-frame-options
-      - SAMEORIGIN
+      # - --allowed-hosts
+      # - "*"
+      # - --cors-allowed-origins
+      # - "*"
     ports:
       - "8080:8080"
     volumes:
