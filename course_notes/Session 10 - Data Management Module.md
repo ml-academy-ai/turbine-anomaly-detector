@@ -62,7 +62,7 @@ data_manager:
 
 ### Add a method that connects to the database
 ```python
-    def _get_connection(self, timeout: int = 30, max_retries: int = 5):
+def _get_connection(self, timeout: int = 30, max_retries: int = 5) -> sq.Connection:
         """
         Get database connection using SQLite default journal mode (DELETE).
 
@@ -85,8 +85,9 @@ data_manager:
                 last_error = e
                 if attempt < max_retries - 1:
                     time.sleep(1)
-        raise last_error
-```
+        assert last_error is not None
+        raise last_error from last_error
+
 
 ### Add Schema of the Tables
 ```yaml

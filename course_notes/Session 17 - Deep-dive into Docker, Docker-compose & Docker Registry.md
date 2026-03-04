@@ -112,9 +112,10 @@ services:
     command: ["python", "entrypoints/app_stream_data.py"]
     volumes:
       - ./data:/app/data
-      - ./conf:/app/conf # bind mount the configuration files
+      - ./conf:/app/conf
     environment:
-    - PYTHONUNBUFFERED=1 # ensure we see python output in real time
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
 
 volumes:
   app_data:
