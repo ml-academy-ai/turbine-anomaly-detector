@@ -174,15 +174,8 @@ Environment variables are then used in the application and docker compose
 ```yaml
 export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
 export KEDRO_VIZ_URI=http://${{ secrets.DO_HOST }}:4141
-export MLFLOW_TRACKING_URI=http://${{ secrets.DO_HOST }}:8080
 export MLFLOW_UI_URI=http://${{ secrets.DO_HOST }}:8080
 ```
-
-
-
-
-
-
 
 ## Part 3: Building the Continuous Deployment Pipeline
 
@@ -292,3 +285,5 @@ deploy:
 This is because Docker makes a copy of you image, it does not copy the files.
 
 ### Push the code and check if the updated container runs on Digital Ocean
+
+### In some cases, MLflow might not be accessible due to the UI issues. In this case, using a VPN can help
