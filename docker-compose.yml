@@ -141,3 +141,4 @@ services:
 
 volumes:
   mlflow_data:
+  prefect_db_data:
